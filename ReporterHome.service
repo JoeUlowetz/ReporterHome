@@ -1,0 +1,14 @@
+# This file needs to be copied by root to /etc/systemd/system/ReporterHome.service
+
+[Unit]
+Description=SWZP reporter service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -u /home/pi/PyCharmRemote/ReporterHome/ReporterHome.py
+Restart=always
+WorkingDirectory=/home/pi/PyCharmRemote/ReporterHome
+User=pi
+Group=pi
+[Install]
+WantedBy=multi-user.target
