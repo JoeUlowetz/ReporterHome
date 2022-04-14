@@ -28,6 +28,7 @@ import threading
 from logger import set_logger, log_event
 from pathlib import Path
 import os
+import webpage
 
 target = "/home/pi/ImpossibleObjects/ReporterHome/reports.txt"     # Reminder: this is on target Linux system
 
@@ -117,15 +118,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # Save the report
                 # ########################################
                 ts = datetime.datetime.now()
-
                 print("%s Saving record: %s" % (ts.strftime("%m-%d %H:%M:%S "), str(input_data_dict)))
 
                 with open(target, 'a') as f:
                     f.write("%s\n" % str(input_data_dict))
+
                 output_data_dict = {
                     'NetCmd': "ACK",
                     'message': "Saved report"}
 
+                webpage.receive(input_data_dict)    # <<<<<<<<<<< This is where web page gets updated
 
         finally:    # send out server response (unless size too large for network buffer)
             # Note: if there is an unhandled exception somewhere within the camera or network logic, it will
@@ -229,6 +231,9 @@ if __name__ == "__main__":
 
     my_ip = "10.1.10.11"        # this is the 'server' that this runs on
     my_port = 65000
+
+    # load previous reports to web page so it shows the most recent into at startup
+    webpage.catchup(target)
 
     while True:
         launch_tcp_server(my_ip, my_port)      # this will run forever, unless the socket is not available
