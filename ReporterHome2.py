@@ -30,12 +30,14 @@ import threading
 from logger import set_logger, log_event
 from pathlib import Path
 import os
-import webpage
+import webpage2     # replaces module webpage.py
 import sys
 
 target_base = "/home/pi/ImpossibleObjects/ReporterHome"
-global target     # Reminder: this is on target Linux system
-target = None     # Reminder: this is on target Linux system
+global target
+global test_mode     # this is True to only report on Joe-printer; False to only report 154 & 158
+# Note: test_mode only affects which printer(s) have data generated for the web page; it always collects
+# and accumulates all the incoming report data regardless of testmode.
 
 BUFFER_SIZE = 2048      # For the moment, assume all messages will fit in one buffer length
 DELTA = 100             # allow for overhead in socket buffer when comparing if message is too large
@@ -118,18 +120,23 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 log_event("WARNING", "REPORTER", state="Request", msg=msg1)
             else:
                 # ########################################
-                # Save the report
+                # Save the report ONLY IF NEW FORMAT
                 # ########################################
-                ts = datetime.datetime.now()
-                print("%s Saving record: %s" % (ts.strftime("%m-%d %H:%M:%S "), str(input_data_dict)))
+                if 'state2' in input_data_dict or 'data2' in input_data_dict:
+                    ts = datetime.datetime.now()
+                    print("%s Saving record: %s" % (ts.strftime("%m-%d %H:%M:%S "), str(input_data_dict)))
 
-                with open(target, 'a') as f:
-                    f.write("%s\n" % str(input_data_dict))
-                webpage.receive(input_data_dict)    # <<<<<<<<<<< This is where OLD web page gets updated
+                    with open(target, 'a') as f:
+                        f.write("%s\n" % str(input_data_dict))
+                    webpage2.receive2(input_data_dict, test_mode)    # <<<<<<<<<<< This is where web page gets updated
 
-                output_data_dict = {
-                    'NetCmd': "ACK",
-                    'message': "Saved report"}
+                    output_data_dict = {
+                        'NetCmd': "ACK",
+                        'message': "Saved report"}
+                else:
+                    output_data_dict = {
+                        'NetCmd': "ACK",
+                        'message': "Ignored old format report"}
 
 
         finally:    # send out server response (unless size too large for network buffer)
@@ -225,16 +232,23 @@ if __name__ == "__main__":
     log_event('INFO', 'REPORTER', msg=msg, argv=str(sys.argv))
     print(msg)
 
-    # optional arguments:
+    # optional arguments only used for TESTING; when using cmd line args, only Joe-printer is reported,
+    # otherwise (no arguments) only printers 154 and 158 are reported:
     #       ReporterHome.py IP PORT ReportFilename
     # Example:
     #       ReporterHome.py 10.1.10.11 65000 reports.txt
-    #if len(sys.argv) > 1:
-    #    my_port = int(sys.argv[1])
-    #else:
-    my_port = 65000
-    my_ip = "10.1.10.11"        # this is the 'server' that this runs on
-    raw_target = "reports.txt"
+    if len(sys.argv) >= 4:
+        my_ip = sys.argv[1]
+        my_port = int(sys.argv[2])
+        raw_target = sys.argv[3]
+        test_mode = True
+        print("*** Running in test_mode ***")
+    else:
+        my_port = 65000
+        my_ip = "10.1.10.11"        # this is the 'server' that this runs on
+        raw_target = "reports.txt"
+        test_mode = False
+        print("*** Running NORMALLY ***")
 
     target = os.path.join(target_base, raw_target)
 
@@ -243,9 +257,8 @@ if __name__ == "__main__":
     Path(head).mkdir(parents=True, exist_ok=True)
 
 
-
-    # load previous reports to web page so it shows the most recent into at startup
-    webpage.catchup(target)
+    # load previous reports to web page, so it shows the most recent entries at startup
+    webpage2.catchup2(target, test_mode)
 
     while True:
         launch_tcp_server(my_ip, my_port)      # this will run forever, unless the socket is not available

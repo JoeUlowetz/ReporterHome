@@ -11,7 +11,7 @@ import os
 import inspect
 
 global logger
-logger = None
+# logger = None
 
 
 def set_logger():
@@ -31,7 +31,7 @@ def set_logger():
     log_config(debug_level, filename)
     """
 
-    log_file_location = '/home/pi/ImpossibleObjects/logfiles/logfile.log'
+    log_file_location = '/home/pi/ImpossibleObjects/logfiles/report_logfile.log'    # 2022.05.13 JU unique file for this
     path, base = os.path.split(log_file_location)
     if path:
         if not os.path.exists(path):
@@ -45,7 +45,7 @@ def set_logger():
     handler = TimedRotatingFileHandler(log_file_location, when='midnight', backupCount=90)
     handler.setFormatter(formatter)
     global logger
-    logger = logging.getLogger('CameraServer')
+    logger = logging.getLogger('ReporterHome')
     if logger.hasHandlers():
         logger.handlers.clear()     # I'm not sure why it already has a handler at this point, but this fixes it.
     logger.addHandler(handler)
