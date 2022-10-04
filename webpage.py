@@ -1,3 +1,11 @@
+# *** WARNING: ALL SOURCE FILES MUST BE CONVERTED TO LINUX EOL CHARACTER BEFORE COPYING TO IO-WEB
+# *** REMINDER: THE WEB TARGET FILE IN webpage.py MUST BE WRITTEN DIRECTLY TO /var/www/html/report.html BECAUSE
+#               LINKS ARE NOT ALLOWED IN THAT DIRECTORY LIKE I WAS DOING ON RPi's. IT IS A SECURITY RISK TO USE
+#               A LINK IN THIS DIRECTORY, which is why they won't work if I try; links are Forbidden.
+
+
+
+
 """
 Message format interpretation:
 
@@ -56,11 +64,18 @@ import os
 # web_target = "C:/temp/test.html"
 # import dateutil.rrule
 
-web_target = "/home/pi/ImpossibleObjects/report.html"
-test_web_target = "/home/pi/ImpossibleObjects/test.html"
-detail_target_base = "/home/pi/ImpossibleObjects/ReporterHome/details"
+#web_target = "/home/pi/ImpossibleObjects/report.html"
+#test_web_target = "/home/pi/ImpossibleObjects/test.html"
+#detail_target_base = "/home/pi/ImpossibleObjects/ReporterHome/details"
 
-problem_pages = "/home/pi/ImpossibleObjects/ReporterHome/problem_pages.txt"
+web_target = "/home/julowetz/ReporterHome/Data/report.html"
+test_web_target = "/home/julowetz/ReporterHome/Data/test.html"
+detail_target_base = "/home/julowetz/ReporterHome/details"
+
+
+#target_base = "/home/julowetz/ReporterHome/Data"
+
+problem_pages = "/home/julowetz/ReporterHome/Data/problem_pages.txt"
 
 # lists containing attributes for the printers
 printer = ['Printer #154', 'Printer #158', 'Test Printer']
@@ -93,9 +108,9 @@ oper_str = '<tr><td>Operator</td><td></td><td style="font-weight:bold">%s</td><t
 note_str = '<tr><td>Note</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
 section_footer = '</table></br>\n'
 
-platen_str = '<table><tr><td>Platen camera:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-outfeed_str = '<table><tr><td>Outfeed camera:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-stacker_str = '<table><tr><td>Stacker camera:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+platen_str = '<table><tr><td>Platen classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+outfeed_str = '<table><tr><td>Outfeed classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+stacker_str = '<table><tr><td>Stacker classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
 
 final_footer = '</body></html>\n'
 
@@ -149,7 +164,7 @@ def receive(report_dict):
     log_page_problems(report_dict)
     if 'printer_name' in report_dict:
         printer_name = report_dict['printer_name']
-        if printer_name == '154':
+        if printer_name == 'JoeWork':   # '154':
             prt = 0
             details.append("0: printer_name == 154")
         elif printer_name == '158':
@@ -306,9 +321,9 @@ x2:	Printer #999
             output.append(page % (page_num[i], 0, ""))
 
         output.append(traveler % build_id[i])
-        if len(operator[i]) > 0:
+        if operator is not None and operator[i] is not None and len(operator[i]) > 0:
             output.append(oper_str % operator[i])
-        if len(note[i]) > 0:
+        if note is not None and note[i] is not None and len(note[i]) > 0:
             output.append(note_str % note[i])
 
         if platen_camera_status[i] is not None:
@@ -335,7 +350,7 @@ x2:	Printer #999
     global detail_index
     detail_filename = "details_%02d.txt" % detail_index
     full_filename = os.path.join(detail_target_base, detail_filename)
-    print(full_filename)
+    print("** Writing web target file:", full_filename)
     f = open(full_filename, 'w')
     f.write(detail)
     f.close()

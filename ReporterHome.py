@@ -4,7 +4,12 @@
 #   copied from CameraServer.py
 
 # 2022.05.10 JU: plan for testing on different IP/Port than current version
+# 2022.08.16 JU: an unhandled exception was occurring over and over until I restarted the service; add sys.exc_info()
 
+# *** WARNING: ALL SOURCE FILES MUST BE CONVERTED TO LINUX EOL CHARACTER BEFORE COPYING TO IO-WEB
+# *** REMINDER: THE WEB TARGET FILE IN webpage.py MUST BE WRITTEN DIRECTLY TO /var/www/html/report.html BECAUSE
+#               LINKS ARE NOT ALLOWED IN THAT DIRECTORY LIKE I WAS DOING ON RPi's. IT IS A SECURITY RISK TO USE
+#               A LINK IN THIS DIRECTORY, which is why they won't work if I try; links are Forbidden.
 """
  To install (one-time event): copy ReporterHome.service to /etc/systemd/system and make sure owned by root
  Then: sudo systemctl enable ReporterHome.service
@@ -33,7 +38,9 @@ import os
 import webpage
 import sys
 
-target_base = "/home/pi/ImpossibleObjects/ReporterHome"
+# target_base = "/home/pi/ImpossibleObjects/ReporterHome"
+target_base = "/home/julowetz/ReporterHome/Data"
+
 global target     # Reminder: this is on target Linux system
 target = None     # Reminder: this is on target Linux system
 
@@ -78,10 +85,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         received = round(time.time(), 3)
 
         # This is only used if there is an unhandled exception that gets caught below
+        trace_it = []
         output_data_dict = {
             'NetCmd': "NAK",
             'message': "Uncaught exception"}
 
+        trace_it.append(1)
         # ########################################
         # Receive the bytes, which we assume are
         # JSON-encoded string, from the network
@@ -91,26 +100,39 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         log_event("DEBUG", "REPORTER", state="Request", incoming_msg=data_str)
 
 
+        trace_it.append(2)
         # ########################################
         # Convert the JSON-encoded string into an
         # object, which should be a dictionary
         # ########################################
         try:
+            trace_it.append(3)
             input_data_dict = json.loads(data_str)
+            trace_it.append(4)
+
         except ValueError:
             # Server received something from client that is not valid json
             # log_it("{S}: ERROR Server received a string that is not valid JSON")
+            trace_it.append(5)
             msg1 = "incoming string is not valid JSON"
             log_event("WARNING", "REPORTER", state="Request", msg=msg1)
             output_data_dict = {
                 'NetCmd': "NAK",
                 'message': msg1}
+        except:
+            _, value, traceback = sys.exc_info()
+            log_event("ERROR", "REPORTER", msg="Other exception occurred", value=value, traceback=traceback)
+            trace_it.append(555)
+            trace_it.append(value)
+            trace_it.append(traceback)
         else:
             # ########################################
             # Make sure the object we received is a
             # dictionary object as expected
             # ########################################
+            trace_it.append(6)
             if type(input_data_dict) is not dict:
+                trace_it.append(7)
                 msg1 = "received object is not a dictionary"
                 output_data_dict = {
                     'NetCmd': "NAK",
@@ -120,6 +142,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # ########################################
                 # Save the report
                 # ########################################
+                trace_it.append(8)
                 ts = datetime.datetime.now()
                 print("%s Saving record: %s" % (ts.strftime("%m-%d %H:%M:%S "), str(input_data_dict)))
 
@@ -138,12 +161,18 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             # exception here. I changed this so output_data_dict[] gets initialized right at the start of the
             # handle() function, and if that version gets returned it is because of some other unhandled exception.
             # misc info
+            trace_it.append(9)
             if output_data_dict is None:
                 # not sure yet how this happens, but it does
+                trace_it.append(10)
                 msg1 = "Response dictionary null"
                 output_data_dict = {
                     'NetCmd': "NAK",
                     'message': msg1}
+
+            # save the notes we took on path of execution
+            trace_it.append(11)
+            output_data_dict['trace_it'] = str(trace_it)
 
             # ########################################
             # turn dictionary into JSON-encoded string
@@ -219,7 +248,7 @@ def launch_tcp_server(host, port):
 # -----------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
 
-    set_logger()                # calls to log_event allowed **AFTER** this point
+    set_logger()                # calls to log_event allowed **AFTER** this point 
     log_event('INFO', 'REPORTER')
     msg = '============= ReporterHome.py startup ==============================='
     log_event('INFO', 'REPORTER', msg=msg, argv=str(sys.argv))
@@ -233,7 +262,8 @@ if __name__ == "__main__":
     #    my_port = int(sys.argv[1])
     #else:
     my_port = 65000
-    my_ip = "10.1.10.11"        # this is the 'server' that this runs on
+    # my_ip = "10.1.10.11"        # this is the 'server' that this runs on
+    my_ip = "10.1.8.30"        # this is the 'server' that this runs on
     raw_target = "reports.txt"
 
     target = os.path.join(target_base, raw_target)

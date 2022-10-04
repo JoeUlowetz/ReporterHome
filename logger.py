@@ -5,7 +5,7 @@
 
 import logging
 from logging.handlers import TimedRotatingFileHandler
-from ioutils.logfiles import log_name_to_level
+# from ioutils.logfiles import log_name_to_level
 import json
 import os
 import inspect
@@ -31,7 +31,8 @@ def set_logger():
     log_config(debug_level, filename)
     """
 
-    log_file_location = '/home/pi/ImpossibleObjects/logfiles/report_logfile.log'    # 2022.05.13 JU unique file for this
+    # log_file_location = '/home/pi/ImpossibleObjects/logfiles/report_logfile.log'    # 2022.05.13 JU unique file for this
+    log_file_location = '/home/julowetz/ReporterHome/logfiles/report_logfile.log'    # 2022.05.13 JU unique file for this
     path, base = os.path.split(log_file_location)
     if path:
         if not os.path.exists(path):
@@ -117,3 +118,44 @@ def log_event(level, tag: str, **kwargs) -> None:
     else:  # MAXIMUM
         logger.log(msg)
 
+LOG_NAME_TO_LEVEL = {
+    'CRITICAL': logging.CRITICAL,
+    'FATAL': logging.FATAL,
+    'ERROR': logging.ERROR,
+    'WARN': logging.WARNING,
+    'WARNING': logging.WARNING,
+    'False': logging.WARNING,
+    'INFO': logging.INFO,
+    'DEBUG': logging.DEBUG,
+    'DEBUG_TEMP': logging.DEBUG,  # Useful for adding temporary debugging messages (i.e. can search for tag to comment out or remove)
+    'True': logging.DEBUG,
+    'MAXIMUM': 1,  # all messages
+    'MAX': 1,
+    'MAX_TEMP': 1,  # Useful for adding temporary debugging messages (i.e. can search for tag to comment out or remove)
+    'NOTSET': logging.NOTSET,
+}
+
+
+def log_name_to_level(level):
+    """
+    get the logging level
+
+    :param level: see below
+    :return: logging level
+
+    valid logging levels are same as the logging module -- Either an int (logging.DEBUG, logging.INFO, logging.WARNING,
+    logging.ERROR, logging.CRITICAL) or a string ("MAXIMUM", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+    """
+    if isinstance(level, int):
+        rv = level
+    elif str(level) == level:
+        if level not in LOG_NAME_TO_LEVEL:
+            print(f'Unknown logging level sent to log_message ({level})')
+            logging.error(f'Unknown logging level sent to log_message ({level})')
+            return
+        rv = LOG_NAME_TO_LEVEL[level]
+
+    return rv
+
+    # 2021.07.22 Joe Ulowetz: it looks like there is a bug here; if something other than an int or string is passed
+    # to this function, it will try to return an uninitialized variable, which will throw an exception

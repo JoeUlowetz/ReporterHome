@@ -125,9 +125,9 @@ oper_str = '<tr><td>Operator</td><td></td><td style="font-weight:bold">%s</td><t
 note_str = '<tr><td>Note</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
 section_footer = '</table></br>\n'
 
-platen_str = '<table><tr><td>Platen camera:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-outfeed_str = '<table><tr><td>Outfeed camera:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-stacker_str = '<table><tr><td>Stacker camera:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+platen_str = '<table><tr><td>Platen classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+outfeed_str = '<table><tr><td>Outfeed classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+stacker_str = '<table><tr><td>Stacker classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
 
 final_footer = '</body></html>\n'
 
@@ -174,7 +174,7 @@ def receive2(report_dict, test_mode):
     # ***********************************************************************************************
     if 'printer' in report_dict:
         # 2022.05.20 JU: fixed so either format of printer name will work
-        if report_dict['printer'] in ['154', 'SWZP_154']:
+        if report_dict['printer'] in ['JoeWork', 'SWZP_154']:
             prt = 0
         elif report_dict['printer'] in ['158', 'SWZP_158']:
             prt = 1
