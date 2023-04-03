@@ -58,60 +58,128 @@ Other types w/o 'state':
 import datetime
 import ast
 import time
-from logger import set_logger
+from logger import set_logger, log_event
 import os
+import reporter_config as cfg
 
-# web_target = "C:/temp/test.html"
-# import dateutil.rrule
+web_target = cfg.web_target                     # "/var/www/html/report.html"
+test_web_target = cfg.test_web_target           # "/home/julowetz/ReporterHome/Data/test.html"
+detail_target_base = cfg.detail_target_base     # "/home/julowetz/ReporterHome/details"
+problem_pages = cfg.problem_pages               # "/home/julowetz/ReporterHome/Data/problem_pages.txt"
+control_list = cfg.control_list                 # ['154', '158', '153']        # <<< Edit this list to change which printers appear on the web page <<<===========
 
-#web_target = "/home/pi/ImpossibleObjects/report.html"
-#test_web_target = "/home/pi/ImpossibleObjects/test.html"
-#detail_target_base = "/home/pi/ImpossibleObjects/ReporterHome/details"
+control_list_length = len(control_list)
 
-web_target = "/home/julowetz/ReporterHome/Data/report.html"
-test_web_target = "/home/julowetz/ReporterHome/Data/test.html"
-detail_target_base = "/home/julowetz/ReporterHome/details"
+# lists containing attributes for the printers specified in the control list
+build_id = [0] * control_list_length
+operator = [''] * control_list_length
+note = [''] * control_list_length
+page_num = [0] * control_list_length
+timestamp = [0] * control_list_length
+max_page = [0] * control_list_length
+state = [''] * control_list_length
+color = ['Gray'] * control_list_length    # used for background color of state info
+pause_reason = [None] * control_list_length
 
+fiber = [None] * control_list_length         # added 2023.03.28 JU
+sheet_size = [None] * control_list_length
+polymer = [None] * control_list_length
 
-#target_base = "/home/julowetz/ReporterHome/Data"
+platen_camera_status = [None] * control_list_length
+outfeed_camera_status = [None] * control_list_length
+stacker_camera_status = [None] * control_list_length
 
-problem_pages = "/home/julowetz/ReporterHome/Data/problem_pages.txt"
+platen_camera_color = [None] * control_list_length
+outfeed_camera_color = [None] * control_list_length
+stacker_camera_color = [None] * control_list_length
 
-# lists containing attributes for the printers
-printer = ['Printer #154', 'Printer #158', 'Test Printer']
-build_id = [0, 0, 0]
-operator = ['', '', '']
-note = ['', '', '']
-page_num = [0, 0, 0]
-timestamp = [0, 0, 0]
-max_page = [0, 0, 0]
-state = ['', '', '']
-color = ['Gray', 'Gray', 'Gray']    # used for background color of state info
-pause_reason = [None, None, None]
+status_list = [None] * control_list_length
+# status_list is a list of length control_list_length
+# each entry in status_list is a list of a variable number of status_entries (could be empty)
+# each status_entry is a list of 5 strings (3rd actually an integer)
+# For example:
+#   status_list = [ prt1_list, prt2_list, prt3_list, prt4_list, ...]    Number of entries = control_list_length (number of printers being reported)
+#   prt1_list = [ day1_entry, day2_entry, day3_entry, day4_entry, ... ]      Number of days configured on a PC for it to send; today is NOT part of this list
+#   day1_entry = [ 'Monday 3/06', '12%', 45, '10:10', '14:42', 3, 15% of 23]          Entries are:  date, active_time_pct, pages_printed, start_time, end_time, restarted, unattended
 
-platen_camera_status = [None, None, None]
-outfeed_camera_status = [None, None, None]
-stacker_camera_status = [None, None, None]
+# values used to report status for today, for each printer
+today_list = [None] * control_list_length
+# Each item in today_list is a list of 4 items
+#   today_list =  [prt1_today, prt2_today, prt3_today, prt4_today, ...]
+#   prt1_today = [ '87%', 123, '07:34', '16:20' ]   which is [ active%, pages, start time, end time]
 
-platen_camera_color = [None, None, None]
-outfeed_camera_color = [None, None, None]
-stacker_camera_color = [None, None, None]
 
 # constants to build html later
-header = '<html lang="en"><body><meta http-equiv="refresh" content="10" >\n'     # Note: this number is auto web page refresh interval
-section_header = "<h1>%s</h1>\n"
+#header = '<html lang="en"><body><meta http-equiv="refresh" content="30" ><head><style>td {border: 0}</style></head>\n'     # Note: this number is auto web page refresh interval
+header = """
+<html lang="en"><body><meta http-equiv="refresh" content="30" >
+<head>
+<style>
+h1 {font-family: 'Avenir', sans-serif;
+    padding:1;
+    text-align:left;
+    color: #0a0a0a;
+    }
+p {font-family: 'Helvetica', cursive;
+    padding:1;
+    text-align:left;
+    color: #0a0a0a
+    }
+table {
+    font-family: 'Avenir', sans-serif;
+    padding: .5em;
+    color: #0a0a0a;
+    #font-style: italic;
+    }
+th {
+    border:0;
+    padding:5
+    }    
+.printer td{
+    text-align: left;
+    }    
+.progress td {border: 0;
+    border-left: 1px solid #ddd;
+    text-align: center;
+    padding: 2
+    }
+.progress td:first-child {
+    border-left: none;
+    } 
+.bold {font-weight:bold}   
+.tomato {background-color: Tomato}
+.dodger {background-color:DodgerBlue}
+</style>
+</head>\n
+"""
+
+
+
+section_header = """
+<div class="printer">
+<h1>%s</h1>\n
+"""
+
 status = '<table><tr><td>Status</td><td></td><td style="background-color:%s;">%s</td><td></td><td>%s</td></tr>\n'
 p_reason = '<tr><td>Pause reason</td><td></td><td style="background-color:Orange;">%s</td><td></td><td></td></tr>\n'
 page = '<tr><td>Page</td><td></td><td style="font-weight:bold">%d of %d</td><td></td><td>%s</td></tr>\n'
 traveler = '<tr><td>Traveler #</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
 oper_str = '<tr><td>Operator</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
 note_str = '<tr><td>Note</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
-section_footer = '</table></br>\n'
 
-platen_str = '<table><tr><td>Platen classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-outfeed_str = '<table><tr><td>Outfeed classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-stacker_str = '<table><tr><td>Stacker classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+fiber_str = '<tr><td>Fiber</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
+sheet_size_str = '<tr><td>Sheet size</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
+polymer_str = '<tr><td>Polymer</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
 
+#section_footer = '</table></div></br>\n'
+#section_footer = '</table>\n'
+section_footer = '</div></br>\n'
+
+platen_str = '<tr><td>Platen classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+outfeed_str = '<tr><td>Outfeed classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+stacker_str = '<tr><td>Stacker classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+
+#final_footer = '<p>Time to generate: %.3f seconds</p></body></html>\n'
 final_footer = '</body></html>\n'
 
 detail_index = 0
@@ -152,40 +220,100 @@ def log_page_problems(report_dict):
         f.close()
 
 
+def display_status(prt, output):
+    if status_list[prt] is None and today_list[prt] is None:
+        return
+
+    table_start = \
+        """<div class="progress">
+        <table border="1" style='border: 1px solid black;'>
+            <tr>
+            <th>Date</th>
+            <th>Active</th> 
+            <th>Pages</th>
+            <th>Start Time</th>
+            <th>End Time</th>
+            <th>Restarted</th>
+            <th>Unattended</th>
+            </tr>
+        """
+    output.append(table_start)
+
+    day_list = status_list[prt]     # could be empty
+    if day_list is not None:
+        cnt = len(day_list)
+        print(f"JOE number of history entries: {cnt}")
+        for day_item in day_list:
+            # first field is the date; it might be in yyyy-mm-dd format, or Weekday mm/dd format
+            the_date = day_item[0]
+            if '-' in the_date:
+                dt = datetime.datetime.strptime(the_date, "%Y-%m-%d")
+                the_date = dt.strftime("%a %m/%d")  # Mon 03/24
+
+            output.append('<tr>')
+            output.append(f'<td>{the_date}</td>')   # Date
+            output.append(f'<td style="text-align: center">{day_item[1]}</td>')   # Active Pct
+            output.append(f'<td style="text-align: center">{day_item[2]}</td>')   # Pages
+            output.append(f'<td style="text-align: center">{day_item[3]}</td>')   # Start time
+            output.append(f'<td style="text-align: center">{day_item[4]}</td>')   # End time
+            output.append(f'<td style="text-align: center">{day_item[5]}</td>')   # Restarted
+            output.append(f'<td style="text-align: center">{day_item[6]}</td>')   # Unattended
+            output.append('</tr>\n')
+
+    # add table line for today
+    data = today_list[prt]
+    if data is not None:
+        cnt2 = len(data)
+        print(f"JOE number of today entries: {cnt2}")
+    if data is not None and len(data) == 7:
+        # The date might be a string (use as-is), or a date; if the date is today, change to string, otherwise show as nice date
+        the_date = data[0]
+        if '-' in the_date:
+            # see if still today:
+            now = datetime.datetime.now()
+            today_str = now.strftime("%Y-%m-%d")
+            if today_str == the_date:
+                the_date = 'Today so far'
+            else:
+                dt = datetime.datetime.strptime(the_date, "%Y-%m-%d")
+                the_date = dt.strftime("%a %m/%d")  # Mon 03/24
+        # else use as-is
+
+        output.append('<tr>')
+        output.append(f'<td>{the_date}</td>')    # 'Today so far'
+        output.append(f'<td style="text-align: center">{data[1]}</td>')    # today pct
+        output.append(f'<td style="text-align: center">{data[2]}</td>')    # today pages
+        output.append(f'<td style="text-align: center">{data[3]}</td>')    # today start
+        output.append(f'<td style="text-align: center">{data[4]}</td>')    # today end
+        output.append(f'<td style="text-align: center">{data[5]}</td>')    # Restarted
+        output.append(f'<td style="text-align: center">{data[6]}</td>')    # Unattended
+        output.append('</tr>\n')
+
+    output.append('</table></div></br>')   # end of this table
+
+
 def receive(report_dict):
     # every report entry has 'printer' or 'printer_name' in it
     # find 'index' for which printer this info is for:
     # 0 = #154
     # 1 = #158
     # 2 = ignore this
+    start_time = time.time()
     print("--receive--")
     details = []
     details.append("%s : receive ----------" % timestamper())
     log_page_problems(report_dict)
-    if 'printer_name' in report_dict:
-        printer_name = report_dict['printer_name']
-        if printer_name == 'JoeWork':   # '154':
-            prt = 0
-            details.append("0: printer_name == 154")
-        elif printer_name == '158':
-            prt = 1
-            details.append("1: printer_name == 158")
-        else:
-            prt = 2		# ignore for now
-            details.append("2: printer_name == something else: %s" % printer_name)
 
-    else:
-        # 2022.05.20 JU: fixed so either format of printer name will work
-        printer_name = report_dict['printer']
-        if report_dict['printer'] in ['154', 'SWZP_154']:
-            prt = 0
-            details.append("0: printer == %s" % printer_name)
-        elif report_dict['printer'] in ['158', 'SWZP_158']:
-            prt = 1
-            details.append("1: printer == %s" % printer_name)
-        else:
-            prt = 2
-            details.append("2: printer == %s" % printer_name)
+    # 2022.05.20 JU: fixed so either format of printer name will work
+    # 2023.03.07 JU: changed again so driven by control_list variable defined at head of this file
+    printer_name = report_dict['printer']
+
+    if printer_name not in control_list:
+        print(f"!!! Received printer name not in control_list:  {printer_name}")
+        log_event("ERROR", "REPORTER", msg="Received printer name not in control_list", printer_name=printer_name, control_list=control_list)
+        return
+
+    prt = control_list.index(printer_name)      # this throws exception if printer_name not in the list
 
     details.append("Printer index = %d" % prt)
     # All the remaining fields get parsed/used by the one particular printer this message is for
@@ -206,8 +334,9 @@ def receive(report_dict):
         if 'note' in report_dict:
             note[prt] = report_dict['note']			# from 'note'
             details.append("note is present")
-        max_page[prt] = int(report_dict['total_pages'])
-        details.append("max_page = %d" % max_page[prt])
+        if 'total_pages' in report_dict:
+            max_page[prt] = int(report_dict['total_pages'])
+            details.append("max_page = %d" % max_page[prt])
 
     elif 'state' in report_dict:
         details.append("state is present")
@@ -238,6 +367,9 @@ def receive(report_dict):
             note[prt] = ''
             max_page[prt] = ''
             build_id[prt] = ''
+            # fiber[prt] = None           # ???
+            # sheet_size[prt] = None      # ???
+            # polymer[prt] = None         # ???
             details.append("state == Software startup")
         elif report_dict['state'] == 'Start Print Job':
             state[prt] = 'Start Print Job'
@@ -281,12 +413,45 @@ def receive(report_dict):
 
             stacker_camera_color[prt] = set_camera_color(stacker)
             details.append("Platen = %s, Outfeed = %s, Stacker = %s" % (platen, outfeed, stacker))
+
+    # 2023.03.10 JU: report printer daily activity numbers
+    if 'today_stats' in report_dict:        # Today: this will probably be sent out once a minute
+        print(f"JOE  today_stats found")
+        today_stats = report_dict['today_stats']        # example:   '12%,45,10:10,14:42'
+        print(f"JOE  today_stats contents: {today_stats}")
+        tup = today_stats.split(',')        # [0] = 'Today so far', [1] = active%, [2] = pages, [3] = start_time, [4] = end_time, [5] = restarts, [6] = unattended
+        if tup is not None and len(tup) == 7:
+            today_list[prt] = tup
+        else:
+            print(f"JOE  did not save to today_list:  {tup}")
+
+    if 'job_fiber' in report_dict:
+        fiber[prt] = report_dict['job_fiber']
+
+    if 'job_sheet_size' in report_dict:
+        sheet_size[prt] = report_dict['job_sheet_size']
+
+    if 'job_polymer' in report_dict:
+        polymer[prt] = report_dict['job_polymer']
+
+    if 'hist_stats' in report_dict:     # Previous days: this is only sent out when the printer starts, so someone manually runs the report
+        print(f"JOE  hist_stats found")
+        hist_stats = report_dict['hist_stats']
+        print(f"JOE   hist_stats contents: {hist_stats}")
+        tup_days = hist_stats.split('|')    # day entries separated by '|'
+        print(f"JOE   hist_stats days: {tup_days}")
+        prt_list = []
+        for day in tup_days:
+            tup_items = day.split(',')      # for one day, the entries are separated by commas; ex: 'Monday 3/06,12%,45,10:10,14:42,5,0% of 5'
+            prt_list.append(tup_items)
+        status_list[prt] = prt_list
+
     """
     Build the output string as list; concat later
     
     Current datetime
     
-x2:	Printer #999
+    Printer #999
     Status		[state][color] as of 12:59
     Page		[page_num] of [max]  xxx%
     Traveler	[build_id]
@@ -294,17 +459,20 @@ x2:	Printer #999
     Note		[note]			# optional
     
     """
-    # if prt > 1:
-    #    return		# don't bother updating if this is not one of the 2 main printers
 
-    # Rebuild the entire page, for both printers
+    # Rebuild the entire page, for all printers
     details.append("--> Generating HTML")
     output = []
     output.append(header)
     output.append("<h2>%s</h2>\n" % datetime.datetime.now().strftime("%Y-%m-%d -- %H:%M:%S"))
-    for i in range(2):
+    for i, printer in enumerate(control_list):
+        #for i in range(2):
         details.append("Page %d" % i)
-        output.append(section_header % printer[i])
+        if printer.isnumeric():
+            nice_name = f"Printer #{printer}"
+        else:
+            nice_name = printer
+        output.append(section_header % nice_name)
         output.append(status % (color[i], state[i], timestamp[i]))
         if state[i] == 'Paused' and pause_reason[i] is not None:
             output.append(p_reason % pause_reason[i])
@@ -326,6 +494,18 @@ x2:	Printer #999
         if note is not None and note[i] is not None and len(note[i]) > 0:
             output.append(note_str % note[i])
 
+        if fiber is not None and fiber[i] is not None and len(fiber[i]) > 0:
+            output.append(fiber_str % fiber[i])
+
+        if sheet_size is not None and sheet_size[i] is not None and len(sheet_size[i]) > 0:
+            output.append(sheet_size_str % sheet_size[i])
+
+        if polymer is not None and polymer[i] is not None and len(polymer[i]) > 0:
+            output.append(polymer_str % polymer[i])
+
+        # TODO: change this eventually so a camera_mode of NORMAL is not shown on web page, but all other modes/states are displayed
+        # TODO: this is to reduce the amount of screen space taken up by each printer section, so we can eventually have 4 (or 5) displayed.
+        output.append('<table>')
         if platen_camera_status[i] is not None:
             line = platen_str % (platen_camera_color[i], platen_camera_status[i])
             output.append(line)
@@ -333,8 +513,15 @@ x2:	Printer #999
             output.append(outfeed_str % (outfeed_camera_color[i], outfeed_camera_status[i]))
         if stacker_camera_status[i] is not None:
             output.append(stacker_str % (stacker_camera_color[i], stacker_camera_status[i]))
+        output.append('</table>')
 
         output.append(section_footer)
+
+        # 2023.03.10 JU
+        display_status(i, output)       # reads content from status_list[], today_list[]
+
+    duration = time.time() - start_time
+    # output.append(final_footer % duration)
     output.append(final_footer)
 
     total = ''.join(output)
@@ -360,9 +547,20 @@ x2:	Printer #999
 
 def catchup(filename):
     # reload existing report file so web page shows most recent values
-    print("Loading previous reports to web page...")
+    # 2023.02.15 JU: only load most recent report data to rebuild the web page
+
+    # count number of lines in the source data; only care about last few records
+    with open(filename, 'r') as fp:
+        line_count = len(fp.readlines())
+
+    print("Loading recent reports to web page...")
     g = open(filename, 'r')
+    count = 0
+    skip_lines = line_count - 100       # skip all but the last 100 lines TODO: adjust this?
     for line in g:
+        count += 1
+        if count < skip_lines:
+            continue
         res = ast.literal_eval(line)
         receive(res)
     g.close()

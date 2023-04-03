@@ -37,9 +37,8 @@ from pathlib import Path
 import os
 import webpage
 import sys
+import reporter_config as cfg
 
-# target_base = "/home/pi/ImpossibleObjects/ReporterHome"
-target_base = "/home/julowetz/ReporterHome/Data"
 
 global target     # Reminder: this is on target Linux system
 target = None     # Reminder: this is on target Linux system
@@ -51,6 +50,11 @@ ENCODING = 'ascii'      # use 'ascii' or 'utf-8'
 action_event = threading.Event()    # set when any action 'run' thread running
 
 socket_working = False      # set to True when server_bind() successfully runs
+
+print("================================================")
+print(f"Configured to use IP: {cfg.ip}")
+print(f"Configured to use port: {cfg.port}")
+print("================================================")
 
 
 # -----------------------------------------------------------------------------------------------------------
@@ -252,27 +256,34 @@ if __name__ == "__main__":
     log_event('INFO', 'REPORTER')
     msg = '============= ReporterHome.py startup ==============================='
     log_event('INFO', 'REPORTER', msg=msg, argv=str(sys.argv))
+    log_event('INFO', 'LOGGING', msg='Log file location', location=cfg.log_file_location)
     print(msg)
 
     # optional arguments:
     #       ReporterHome.py IP PORT ReportFilename
+    #       ReporterHome.py 10.1.10.1 65000 reports.txt
     # Example:
     #       ReporterHome.py 10.1.10.11 65000 reports.txt
-    #if len(sys.argv) > 1:
-    #    my_port = int(sys.argv[1])
-    #else:
-    my_port = 65000
-    # my_ip = "10.1.10.11"        # this is the 'server' that this runs on
-    my_ip = "10.1.8.30"        # this is the 'server' that this runs on
-    raw_target = "reports.txt"
+    # if len(sys.argv) > 1:
+    if False:
+        # running on my development system for testing
+        my_ip = sys.argv[1]
+        my_port = int(sys.argv[2])
+        raw_target = sys.argv[3]
+        target_base = "/home/pi/ImpossibleObjects/ReporterHome"
+    else:
+        # Running on CentOS7 office web server
+        my_ip = cfg.ip                  # "10.1.8.30"  # this is the 'server' that this runs on
+        my_port = cfg.port              # 65000  # <<< prod port
+        raw_target = cfg.raw_target     # "reports.txt"
+        target_base = cfg.target_base   # "/home/julowetz/ReporterHome/Data"
 
     target = os.path.join(target_base, raw_target)
+    log_event('INFO', 'REPORTER', target_base=target_base)
 
     # Make sure the target directory exists to write the file to
     head, _ = os.path.split(target)
     Path(head).mkdir(parents=True, exist_ok=True)
-
-
 
     # load previous reports to web page so it shows the most recent into at startup
     webpage.catchup(target)

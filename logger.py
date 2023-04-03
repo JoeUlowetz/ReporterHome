@@ -9,9 +9,7 @@ from logging.handlers import TimedRotatingFileHandler
 import json
 import os
 import inspect
-
-global logger
-# logger = None
+import reporter_config as cfg
 
 
 def set_logger():
@@ -31,9 +29,9 @@ def set_logger():
     log_config(debug_level, filename)
     """
 
-    # log_file_location = '/home/pi/ImpossibleObjects/logfiles/report_logfile.log'    # 2022.05.13 JU unique file for this
-    log_file_location = '/home/julowetz/ReporterHome/logfiles/report_logfile.log'    # 2022.05.13 JU unique file for this
-    path, base = os.path.split(log_file_location)
+    # log_file_location =  '/home/julowetz/ReporterHome/logfiles/report_logfile.log'    # 2022.05.13 JU unique file for this
+    path, base = os.path.split(cfg.log_file_location)
+    print(f"*** Log file location: {cfg.log_file_location}")
     if path:
         if not os.path.exists(path):
             os.makedirs(path)
@@ -43,14 +41,13 @@ def set_logger():
     # Old: fmt = '%(asctime)s - %(levelname)s - %(message)s'
     formatter = logging.Formatter(fmt)
 
-    handler = TimedRotatingFileHandler(log_file_location, when='midnight', backupCount=90)
+    handler = TimedRotatingFileHandler(cfg.log_file_location, when='midnight', backupCount=90)
     handler.setFormatter(formatter)
-    global logger
-    logger = logging.getLogger('ReporterHome')
-    if logger.hasHandlers():
-        logger.handlers.clear()     # I'm not sure why it already has a handler at this point, but this fixes it.
-    logger.addHandler(handler)
-    logger.setLevel(logging.DEBUG)
+    the_logger = logging.getLogger(cfg.logger_name)
+    if the_logger.hasHandlers():
+        the_logger.handlers.clear()     # I'm not sure why it already has a handler at this point, but this fixes it.
+    the_logger.addHandler(handler)
+    the_logger.setLevel(logging.DEBUG)
 
 
 def log_event(level, tag: str, **kwargs) -> None:
@@ -106,17 +103,18 @@ def log_event(level, tag: str, **kwargs) -> None:
     log_level = log_name_to_level(level)
 
     if log_level >= logging.CRITICAL:
-        logger.critical(msg)
+        logging.critical(msg)
     elif log_level >= logging.ERROR:
-        logger.error(msg)
+        logging.error(msg)
     elif log_level >= logging.WARNING:
-        logger.warning(msg)
+        logging.warning(msg)
     elif log_level >= logging.INFO:
-        logger.info(msg)
+        logging.info(msg)
     elif log_level >= logging.DEBUG:
-        logger.debug(msg)
+        logging.debug(msg)
     else:  # MAXIMUM
-        logger.log(msg)
+        logging.log(msg)
+
 
 LOG_NAME_TO_LEVEL = {
     'CRITICAL': logging.CRITICAL,
