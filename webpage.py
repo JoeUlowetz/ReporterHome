@@ -63,8 +63,9 @@ import os
 import reporter_config as cfg
 
 web_target = cfg.web_target                     # "/var/www/html/report.html"
-test_web_target = cfg.test_web_target           # "/home/julowetz/ReporterHome/Data/test.html"
-detail_target_base = cfg.detail_target_base     # "/home/julowetz/ReporterHome/details"
+web_target_short = cfg.web_target_short        # "/var/www/html/report_short.html"
+# test_web_target = cfg.test_web_target           # "/home/julowetz/ReporterHome/Data/test.html"
+detail_target_base = cfg.detail_target_base     # "/home/julowetz/ReporterHome/details"     DEPRECATED
 problem_pages = cfg.problem_pages               # "/home/julowetz/ReporterHome/Data/problem_pages.txt"
 control_list = cfg.control_list                 # ['154', '158', '153']        # <<< Edit this list to change which printers appear on the web page <<<===========
 
@@ -111,33 +112,42 @@ today_list = [None] * control_list_length
 
 # constants to build html later
 #header = '<html lang="en"><body><meta http-equiv="refresh" content="30" ><head><style>td {border: 0}</style></head>\n'     # Note: this number is auto web page refresh interval
+# *PART-1*
 header = """
 <html lang="en"><body><meta http-equiv="refresh" content="30" >
 <head>
 <style>
+header {
+    text-align: right;
+    padding: 0 1%;
+    }
 h1 {font-family: 'Avenir', sans-serif;
-    padding:1;
+    font-size: 3em;
+    margin:1 0;
+    padding:0 10;
     text-align:left;
     color: #0a0a0a;
+    font-kerning: auto;
     }
-p {font-family: 'Helvetica', cursive;
-    padding:1;
-    text-align:left;
-    color: #0a0a0a
+h2 {font-family: 'Railway', sans-serif;
+    color: SlateGrey;
     }
 table {
     font-family: 'Avenir', sans-serif;
-    padding: .5em;
+    padding:4;
     color: #0a0a0a;
-    #font-style: italic;
     }
 th {
     border:0;
-    padding:5
-    }    
+    padding:10;
+    }
+.wrap {
+    width: 80%;
+    margin: 0 auto;
+    }
 .printer td{
     text-align: left;
-    }    
+    }        
 .progress td {border: 0;
     border-left: 1px solid #ddd;
     text-align: center;
@@ -145,49 +155,115 @@ th {
     }
 .progress td:first-child {
     border-left: none;
-    } 
-.bold {font-weight:bold}   
+    }	
+tr:nth-child(even) {
+    background-color: #f9f9f9;
+    }
+.bold {font-weight: bold}
 .tomato {background-color: Tomato}
-.dodger {background-color:DodgerBlue}
+.dodger {background-color: DodgerBlue}
+.LightGray {background-color: LightGray}
+.MediumSeaGreen {background-color: MediumSeaGreen}
+.Violet {background-color: Violet}
+.Gray {background-color: Gray}
+.Orange {background-color: Orange}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+  margin: 10px 0;
+}
+
+.column1{
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  flex: 1;
+  margin: 0 10px;
+}
+
+.column2 {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  flex: 2;
+  margin: 0 10px;
+}
 </style>
 </head>\n
 """
 
 
+# *PART-2*
+date_header = '<header><h2>%s</h2></header>\n'
 
-section_header = """
-<div class="printer">
-<h1>%s</h1>\n
-"""
+# *PART-3*
+class_wrap = '<div class="wrap"><br>\n'
 
-status = '<table><tr><td>Status</td><td></td><td style="background-color:%s;">%s</td><td></td><td>%s</td></tr>\n'
-p_reason = '<tr><td>Pause reason</td><td></td><td style="background-color:Orange;">%s</td><td></td><td></td></tr>\n'
-page = '<tr><td>Page</td><td></td><td style="font-weight:bold">%d of %d</td><td></td><td>%s</td></tr>\n'
-traveler = '<tr><td>Traveler #</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
-oper_str = '<tr><td>Operator</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
-note_str = '<tr><td>Note</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
+# *SECTION-1, PART-1*
+section_start = '<section class="row"><div class="printer column1" border="1" style=\'border: 1px solid black; border-radius: 10px;\'><h1>%s</h1><table>\n'
 
-fiber_str = '<tr><td>Fiber</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
-sheet_size_str = '<tr><td>Sheet size</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
-polymer_str = '<tr><td>Polymer</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
+# *SECTION, PART-2*
+# status = '<table><tr><td>Status</td><td style="background-color:%s;">%s</td><td></td><td>%s</td></tr>\n'
+status = """<tr><td>Status:</td><td style="background-color:%s;">%s</td><td>%s</td></tr>"""
 
-#section_footer = '</table></div></br>\n'
-#section_footer = '</table>\n'
+# p_reason = '<tr><td>Pause reason</td><td></td><td style="background-color:Orange;">%s</td><td></td><td></td></tr>\n'
+p_reason = """<tr><td>Pause reason:</td><td style="background-color:Orange;">%s</td><td></td></tr>\n"""
+
+# page = '<tr><td>Page</td><td></td><td style="font-weight:bold">%d of %d</td><td></td><td>%s</td></tr>\n'
+page = """<tr><td>Page:</td><td class="bold">%d of %d</td><td>%s</td></tr>\n"""
+
+# traveler = '<tr><td>Traveler #</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
+traveler = """<tr><td>Traveler #:</td><td class="bold">%s</td><td></td></tr>\n"""
+
+# oper_str = '<tr><td>Operator</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
+oper_str = """<tr><td>Operator:</td><td class="bold">%s</td><td></td></tr>\n"""
+
+# note_str = '<tr><td>Note</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
+note_str = """<tr><td>Note:</td><td class="bold">%s</td><td></td></tr>\n"""
+
+# fiber_str = '<tr><td>Fiber</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
+fiber_str = """<tr><td>Fiber:</td><td class="bold">%s</td><td></td></tr>\n"""
+
+# sheet_size_str = '<tr><td>Sheet size</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
+sheet_size_str = """<tr><td>Sheet size:</td><td class="bold">%s</td><td></td></tr>\n"""
+
+# polymer_str = '<tr><td>Polymer</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
+polymer_str = """<tr><td>Polymer:</td><td class="bold">%s</td><td></td></tr>\n"""
+
+#*SECTION, PART-3*
+table_1_end = "</table>\n"
+
+
 section_footer = '</div></br>\n'
 
-platen_str = '<tr><td>Platen classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-outfeed_str = '<tr><td>Outfeed classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-stacker_str = '<tr><td>Stacker classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
 
-#final_footer = '<p>Time to generate: %.3f seconds</p></body></html>\n'
+# *SECTION, PART-4*  wrap w/ <table>...</table>
+# platen_str = '<tr><td>Platen classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+platen_str = """<tr><td>Platen XXX classifier:</td><td class="%s">%s</td></tr>\n"""
+
+# outfeed_str = '<tr><td>Outfeed classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+outfeed_str = """<tr><td>Outfeed classifier:</td><td class="%s">%s</td></tr>\n"""
+
+# stacker_str = '<tr><td>Stacker classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
+stacker_str = """<tr><td>Stacker classifier:</td><td class="%s">%s</td></tr>\n"""
+
+# *SECTION, PART-5*
+dev_end = '</dev>\n'
+
+# *SECTION, PART-6*     handled in display_status()
+
+
 final_footer = '</body></html>\n'
 
 detail_index = 0
 
 
-def timestamper():
-    nowt = datetime.datetime.now()
-    return nowt.strftime("%H:%M:%S ")
+# def timestamper():
+#     nowt = datetime.datetime.now()
+#     return nowt.strftime("%H:%M:%S ")
 
 
 def format_as_of(tstamp):
@@ -224,9 +300,8 @@ def display_status(prt, output):
     if status_list[prt] is None and today_list[prt] is None:
         return
 
-    table_start = \
-        """<div class="progress">
-        <table border="1" style='border: 1px solid black;'>
+    progress_table_start = \
+        """<div class="progress center column2"><table border="1" style='border: 1px solid black; border-radius: 10px;'>
             <tr>
             <th>Date</th>
             <th>Active</th> 
@@ -237,7 +312,7 @@ def display_status(prt, output):
             <th>Unattended</th>
             </tr>
         """
-    output.append(table_start)
+    output.append(progress_table_start)
 
     day_list = status_list[prt]     # could be empty
     if day_list is not None:
@@ -245,10 +320,25 @@ def display_status(prt, output):
         print(f"JOE number of history entries: {cnt}")
         for day_item in day_list:
             # first field is the date; it might be in yyyy-mm-dd format, or Weekday mm/dd format
+            if type(day_item) is not list:
+                print("---not a list--")
+                continue
+            if len(day_item) < 7:
+                print("---too few items--")
+                continue
+
             the_date = day_item[0]
+            if len(the_date) < 2:
+                print("---invalid date--")
+                continue
+
+            print(f"*** day_item: {day_item}")
+            print(f"*** the_date: {the_date}")
             if '-' in the_date:
-                dt = datetime.datetime.strptime(the_date, "%Y-%m-%d")
+                dt = datetime.datetime.strptime(the_date, "%Y-%m-%d")   # reformat the date
+                print(dt)
                 the_date = dt.strftime("%a %m/%d")  # Mon 03/24
+            # else use as-is
 
             output.append('<tr>')
             output.append(f'<td>{the_date}</td>')   # Date
@@ -262,9 +352,9 @@ def display_status(prt, output):
 
     # add table line for today
     data = today_list[prt]
-    if data is not None:
-        cnt2 = len(data)
-        print(f"JOE number of today entries: {cnt2}")
+    # if data is not None:
+    #     cnt2 = len(data)
+    #     print(f"JOE number of today entries: {cnt2}")
     if data is not None and len(data) == 7:
         # The date might be a string (use as-is), or a date; if the date is today, change to string, otherwise show as nice date
         the_date = data[0]
@@ -289,7 +379,7 @@ def display_status(prt, output):
         output.append(f'<td style="text-align: center">{data[6]}</td>')    # Unattended
         output.append('</tr>\n')
 
-    output.append('</table></div></br>')   # end of this table
+    output.append('</table></div>')   # end of this table
 
 
 def receive(report_dict):
@@ -300,8 +390,8 @@ def receive(report_dict):
     # 2 = ignore this
     start_time = time.time()
     print("--receive--")
-    details = []
-    details.append("%s : receive ----------" % timestamper())
+    # details = []
+    # details.append("%s : receive ----------" % timestamper())
     log_page_problems(report_dict)
 
     # 2022.05.20 JU: fixed so either format of printer name will work
@@ -315,31 +405,31 @@ def receive(report_dict):
 
     prt = control_list.index(printer_name)      # this throws exception if printer_name not in the list
 
-    details.append("Printer index = %d" % prt)
+    # details.append("Printer index = %d" % prt)
     # All the remaining fields get parsed/used by the one particular printer this message is for
     if 'timestamp' in report_dict:
         ts = float(report_dict['timestamp'])
         timestamp[prt] = format_as_of(ts)
-        details.append("timestamp is present")
+        # details.append("timestamp is present")
 
     if 'model_name' in report_dict:
         # clear current values and load new ones:
-        details.append("model_name is present")
+        # details.append("model_name is present")
         if 'build_id' in report_dict:
             build_id[prt] = report_dict['build_id'] 		# from 'build_id'
-            details.append("build_id is present")
+            # details.append("build_id is present")
         if 'operator_name' in report_dict:
             operator[prt] = report_dict['operator_name']		# from 'operator_name'
-            details.append("operator_name is present")
+            # details.append("operator_name is present")
         if 'note' in report_dict:
             note[prt] = report_dict['note']			# from 'note'
-            details.append("note is present")
+            # details.append("note is present")
         if 'total_pages' in report_dict:
             max_page[prt] = int(report_dict['total_pages'])
-            details.append("max_page = %d" % max_page[prt])
+            # details.append("max_page = %d" % max_page[prt])
 
     elif 'state' in report_dict:
-        details.append("state is present")
+        # details.append("state is present")
         if report_dict['state'] != 'Paused':
             pause_reason[prt] = None        # make sure this gets erased for any other state
         if report_dict['state'] == 'Printing page':
@@ -347,11 +437,11 @@ def receive(report_dict):
             color[prt] = 'DodgerBlue'
             page_num[prt] = int(report_dict['page_num'])
             build_id[prt] = report_dict['traveler_num']		# yes, traveler_num is the same as build_id in other message
-            details.append("state == Printing page")
+            # details.append("state == Printing page")
         elif report_dict['state'] == 'Paused':
             state[prt] = 'Paused'
             color[prt] = 'Orange'
-            details.append("state == Paused")
+            # details.append("state == Paused")
             # maybe also show pause reason (if provided)
             if 'pause_reason' in report_dict:
                 if len(report_dict['pause_reason']) > 0:
@@ -370,35 +460,35 @@ def receive(report_dict):
             # fiber[prt] = None           # ???
             # sheet_size[prt] = None      # ???
             # polymer[prt] = None         # ???
-            details.append("state == Software startup")
+            # details.append("state == Software startup")
         elif report_dict['state'] == 'Start Print Job':
             state[prt] = 'Start Print Job'
             color[prt] = 'Violet'
-            details.append("state == Start Print Job")
+            # details.append("state == Start Print Job")
         elif report_dict['state'] == 'Resume printing':
             state[prt] = 'Resume printing'
             color[prt] = 'DodgerBlue'
-            details.append("state == Resume printing")
+            # details.append("state == Resume printing")
         elif report_dict['state'] == 'Shutdown':
             state[prt] = 'Shutdown'
             color[prt] = 'Tomato'
-            details.append("state == Shutdown")
+            # details.append("state == Shutdown")
         elif report_dict['state'] == 'Cancel Print Job':
             state[prt] = 'Cancelled Job'
             color[prt] = 'Tomato'
-            details.append("state == Cancel Print Job")
+            # details.append("state == Cancel Print Job")
         elif report_dict['state'] == 'Print job complete':
             state[prt] = 'Finished!'
             color[prt] = 'MediumSeaGreen'
-            details.append("state == Print job complete")
+            # details.append("state == Print job complete")
         else:
             state[prt] = report_dict['state']   # includes 'FIRMWARE_VERSIONS'
             color[prt] = 'Gray'
-            details.append("state is other: %s" % state[prt])
+            # details.append("state is other: %s" % state[prt])
 
     if 'data2' in report_dict:
         data2 = report_dict['data2']
-        details.append("data2 is present: %s" % data2)
+        # details.append("data2 is present: %s" % data2)
         if data2 == 'camera_status':
             platen = report_dict['platen']
             platen_camera_status[prt] = platen
@@ -412,7 +502,7 @@ def receive(report_dict):
             stacker_camera_status[prt] = stacker
 
             stacker_camera_color[prt] = set_camera_color(stacker)
-            details.append("Platen = %s, Outfeed = %s, Stacker = %s" % (platen, outfeed, stacker))
+            # details.append("Platen = %s, Outfeed = %s, Stacker = %s" % (platen, outfeed, stacker))
 
     # 2023.03.10 JU: report printer daily activity numbers
     if 'today_stats' in report_dict:        # Today: this will probably be sent out once a minute
@@ -424,6 +514,9 @@ def receive(report_dict):
             today_list[prt] = tup
         else:
             print(f"JOE  did not save to today_list:  {tup}")
+        filename = "Data/today_stats_%d" % prt
+        with open(filename, 'w') as f:       # save raw data to file in case web server restarts
+            f.write(today_stats)
 
     if 'job_fiber' in report_dict:
         fiber[prt] = report_dict['job_fiber']
@@ -446,6 +539,10 @@ def receive(report_dict):
             prt_list.append(tup_items)
         status_list[prt] = prt_list
 
+        filename = "Data/hist_stats_%d" % prt       # save raw data to file in case web server restarts
+        with open(filename, 'w') as f:
+            f.write(hist_stats)
+
     """
     Build the output string as list; concat later
     
@@ -461,21 +558,29 @@ def receive(report_dict):
     """
 
     # Rebuild the entire page, for all printers
-    details.append("--> Generating HTML")
+    # details.append("--> Generating HTML")
     output = []
     output.append(header)
-    output.append("<h2>%s</h2>\n" % datetime.datetime.now().strftime("%Y-%m-%d -- %H:%M:%S"))
+    output.append(date_header % datetime.datetime.now().strftime("%Y-%m-%d -- %H:%M:%S"))
+    output.append(class_wrap)
+
+    short_output = []
+    short_output.append(header)
+    short_output.append(date_header % datetime.datetime.now().strftime("%Y-%m-%d -- %H:%M:%S"))
+    short_output.append(class_wrap)
+
     for i, printer in enumerate(control_list):
         #for i in range(2):
-        details.append("Page %d" % i)
+        # details.append("Page %d" % i)
         if printer.isnumeric():
             nice_name = f"Printer #{printer}"
         else:
             nice_name = printer
-        output.append(section_header % nice_name)
-        output.append(status % (color[i], state[i], timestamp[i]))
+        section_output = []
+        section_output.append(section_start % nice_name)
+        section_output.append(status % (color[i], state[i], timestamp[i]))
         if state[i] == 'Paused' and pause_reason[i] is not None:
-            output.append(p_reason % pause_reason[i])
+            section_output.append(p_reason % pause_reason[i])
         # calc percent complete, if appropriate
         try:
             p = int(page_num[i])
@@ -484,88 +589,119 @@ def receive(report_dict):
                 complete = "%d%%" % ((p * 100) // m)
             else:
                 complete = ""
-            output.append(page % (page_num[i], max_page[i], complete))
+            section_output.append(page % (page_num[i], max_page[i], complete))
         except:
-            output.append(page % (page_num[i], 0, ""))
+            section_output.append(page % (page_num[i], 0, ""))
 
-        output.append(traveler % build_id[i])
+        section_output.append(traveler % build_id[i])
         if operator is not None and operator[i] is not None and len(operator[i]) > 0:
-            output.append(oper_str % operator[i])
+            section_output.append(oper_str % operator[i])
         if note is not None and note[i] is not None and len(note[i]) > 0:
-            output.append(note_str % note[i])
+            section_output.append(note_str % note[i])
 
         if fiber is not None and fiber[i] is not None and len(fiber[i]) > 0:
-            output.append(fiber_str % fiber[i])
+            section_output.append(fiber_str % fiber[i])
 
         if sheet_size is not None and sheet_size[i] is not None and len(sheet_size[i]) > 0:
-            output.append(sheet_size_str % sheet_size[i])
+            section_output.append(sheet_size_str % sheet_size[i])
 
         if polymer is not None and polymer[i] is not None and len(polymer[i]) > 0:
-            output.append(polymer_str % polymer[i])
+            section_output.append(polymer_str % polymer[i])
+        section_output.append('</table>')
 
         # TODO: change this eventually so a camera_mode of NORMAL is not shown on web page, but all other modes/states are displayed
         # TODO: this is to reduce the amount of screen space taken up by each printer section, so we can eventually have 4 (or 5) displayed.
-        output.append('<table>')
+        section_output.append('<table>')
         if platen_camera_status[i] is not None:
             line = platen_str % (platen_camera_color[i], platen_camera_status[i])
-            output.append(line)
+            section_output.append(line)
         if outfeed_camera_status[i] is not None:
-            output.append(outfeed_str % (outfeed_camera_color[i], outfeed_camera_status[i]))
+            section_output.append(outfeed_str % (outfeed_camera_color[i], outfeed_camera_status[i]))
         if stacker_camera_status[i] is not None:
-            output.append(stacker_str % (stacker_camera_color[i], stacker_camera_status[i]))
-        output.append('</table>')
+            section_output.append(stacker_str % (stacker_camera_color[i], stacker_camera_status[i]))
+        section_output.append('</table>')
 
-        output.append(section_footer)
+        section_output.append(section_footer)
 
         # 2023.03.10 JU
-        display_status(i, output)       # reads content from status_list[], today_list[]
+        status_output = []
+        display_status(i, status_output)       # reads content from status_list[], today_list[]
 
-    duration = time.time() - start_time
+        output += section_output
+        output += status_output
+        output.append('</section>')
+
+        # build copy without status_output
+        short_output += section_output
+        short_output.append('</section>')
+
+
+    # add link at the bottom of the page to switch between formats
+    to_terse = '<p>Terse version of report <a href="https://io-web.io.local/report_short.html">TERSE</a>.</p>'
+    to_verbose = '<p>Terse version of report <a href="https://io-web.io.local/report.html">VERBOSE</a>.</p>'
+
+    # duration = time.time() - start_time
     # output.append(final_footer % duration)
+    output.append(to_terse)        # NOT WORKING
     output.append(final_footer)
+    short_output.append(to_verbose)    # NOT WORKING
+    short_output.append(final_footer)
 
     total = ''.join(output)
     f = open(web_target, 'w')
     f.write(total)
     f.close()
 
-    total2 = '\n'.join(output)
-    details.append("--> Result HTML:")
-    details.append(total2)
-    detail = '\n'.join(details)
-
-    global detail_index
-    detail_filename = "details_%02d.txt" % detail_index
-    full_filename = os.path.join(detail_target_base, detail_filename)
-    print("** Writing web target file:", full_filename)
-    f = open(full_filename, 'w')
-    f.write(detail)
+    short_total = ''.join(short_output)
+    f = open(web_target_short, 'w')
+    f.write(short_total)
     f.close()
-    detail_index += 1
-    detail_index = detail_index % 100       # keep last 100 details
 
 
 def catchup(filename):
     # reload existing report file so web page shows most recent values
     # 2023.02.15 JU: only load most recent report data to rebuild the web page
 
+    # retrieve most recent history items from cache files
+    for i in range(control_list_length):
+        filename1 = "Data/today_stats_%d" % i
+        if os.path.isfile(filename1):
+            print(f"FOUND FILE: {filename1}")
+            with open(filename1) as f:
+                today_stats = f.read()      # todo: check to see if needs strip()
+                today_list[i] = today_stats.split(',')
+
+        filename2 = "Data/hist_stats_%d" % i
+        if os.path.isfile(filename2):
+            print(f"FOUND FILE: {filename2}")
+            with open(filename2) as f:
+                hist_stats = f.read()
+                tup_days = hist_stats.split('|')  # day entries separated by '|'
+                prt_list = []
+                for day in tup_days:
+                    tup_items = day.split(',')
+                    prt_list.append(tup_items)
+                status_list[i] = prt_list
+
     # count number of lines in the source data; only care about last few records
-    with open(filename, 'r') as fp:
-        line_count = len(fp.readlines())
+    try:
+        with open(filename, 'r') as fp:
+            line_count = len(fp.readlines())
 
-    print("Loading recent reports to web page...")
-    g = open(filename, 'r')
-    count = 0
-    skip_lines = line_count - 100       # skip all but the last 100 lines TODO: adjust this?
-    for line in g:
-        count += 1
-        if count < skip_lines:
-            continue
-        res = ast.literal_eval(line)
-        receive(res)
-    g.close()
-    print("Web page now current")
-
+        print("Loading recent reports to web page...")
+        g = open(filename, 'r')
+        count = 0
+        skip_lines = line_count - 300       # skip all but the last 300 lines TODO: adjust this?
+        for line in g:
+            count += 1
+            if count < skip_lines:
+                continue
+            res = ast.literal_eval(line)
+            receive(res)
+        g.close()
+        print("Web page now current")
+    except:
+        print(f"No {filename}, run anyway")
 
 def set_camera_color(status):
     # Working, Disabled, Partial, Not active, Not configured
