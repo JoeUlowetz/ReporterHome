@@ -150,14 +150,17 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 ts = datetime.datetime.now()
                 print("%s Saving record: %s" % (ts.strftime("%m-%d %H:%M:%S "), str(input_data_dict)))
 
+                trace_it.append(81)
                 with open(target, 'a') as f:
                     f.write("%s\n" % str(input_data_dict))
+                trace_it.append(82)
                 webpage.receive(input_data_dict)    # <<<<<<<<<<< This is where OLD web page gets updated
+                trace_it.append(83)
 
                 output_data_dict = {
                     'NetCmd': "ACK",
                     'message': "Saved report"}
-
+                trace_it.append(84)
 
         finally:    # send out server response (unless size too large for network buffer)
             # Note: if there is an unhandled exception somewhere within the camera or network logic, it will

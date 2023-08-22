@@ -1,5 +1,6 @@
 # reporter_config.py
 
+"""
 # Setup for DEVELOPMENT version
 # Used in ReporterHome.py
 ip = "10.1.8.30"
@@ -13,6 +14,8 @@ test_web_target = "/home/julowetz/ReporterHomeDev/Data/test.html"
 web_target_short = "/var/www/html/report_short_dev.html"
 detail_target_base = "/home/julowetz/ReporterHomeDev/details"
 problem_pages = "/home/julowetz/ReporterHomeDev/Data/problem_pages.txt"
+http_terse = "https://io-web.io.local/report_short_dev.html"
+http_verbose = "https://io-web.io.local/report_dev.html"
 
 # List of printers to show on the web page; the spellings here must exactly match what the printers send
 # in the "printer" field of the message. Printers not listed here are ignored. Any number of printers can
@@ -38,6 +41,8 @@ web_target_short = "/var/www/html/report_short.html"
 test_web_target = "/home/julowetz/ReporterHome/Data/test.html"
 detail_target_base = "/home/julowetz/ReporterHome/details"
 problem_pages = "/home/julowetz/ReporterHome/Data/problem_pages.txt"
+http_terse = "https://io-web.io.local/report_short.html"
+http_verbose = "https://io-web.io.local/report.html"
 
 # List of printers to show on the web page; the spellings here must exactly match what the printers send
 # in the "printer" field of the message. Printers not listed here are ignored. Any number of printers can
@@ -48,4 +53,4 @@ control_list = ['154', '158', '153']
 log_file_location = "/home/julowetz/ReporterHome/logfiles/report_logfile.log"
 logger_name = "ReporterHome"
 
-"""
+

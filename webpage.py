@@ -242,7 +242,7 @@ section_footer = '</div></br>\n'
 
 # *SECTION, PART-4*  wrap w/ <table>...</table>
 # platen_str = '<tr><td>Platen classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-platen_str = """<tr><td>Platen XXX classifier:</td><td class="%s">%s</td></tr>\n"""
+platen_str = """<tr><td>Platen classifier:</td><td class="%s">%s</td></tr>\n"""
 
 # outfeed_str = '<tr><td>Outfeed classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
 outfeed_str = """<tr><td>Outfeed classifier:</td><td class="%s">%s</td></tr>\n"""
@@ -407,7 +407,7 @@ def receive(report_dict):
 
     # details.append("Printer index = %d" % prt)
     # All the remaining fields get parsed/used by the one particular printer this message is for
-    if 'timestamp' in report_dict:
+    if report_dict.get('timestamp') is not None:        #     2023.06.21 JU: changed to use get
         ts = float(report_dict['timestamp'])
         timestamp[prt] = format_as_of(ts)
         # details.append("timestamp is present")
@@ -505,7 +505,7 @@ def receive(report_dict):
             # details.append("Platen = %s, Outfeed = %s, Stacker = %s" % (platen, outfeed, stacker))
 
     # 2023.03.10 JU: report printer daily activity numbers
-    if 'today_stats' in report_dict:        # Today: this will probably be sent out once a minute
+    if report_dict.get('today_stats') is not None:        # Today: this will probably be sent out once a minute     2023.06.21 JU: changed to use get
         print(f"JOE  today_stats found")
         today_stats = report_dict['today_stats']        # example:   '12%,45,10:10,14:42'
         print(f"JOE  today_stats contents: {today_stats}")
@@ -527,7 +527,7 @@ def receive(report_dict):
     if 'job_polymer' in report_dict:
         polymer[prt] = report_dict['job_polymer']
 
-    if 'hist_stats' in report_dict:     # Previous days: this is only sent out when the printer starts, so someone manually runs the report
+    if report_dict.get('hist_stats') is not None:     # Previous days: this is only sent out when the printer starts, so someone manually runs the report    2023.06.21 JU: changed to use get
         print(f"JOE  hist_stats found")
         hist_stats = report_dict['hist_stats']
         print(f"JOE   hist_stats contents: {hist_stats}")
@@ -637,14 +637,14 @@ def receive(report_dict):
 
 
     # add link at the bottom of the page to switch between formats
-    to_terse = '<p>Terse version of report <a href="https://io-web.io.local/report_short.html">TERSE</a>.</p>'
-    to_verbose = '<p>Terse version of report <a href="https://io-web.io.local/report.html">VERBOSE</a>.</p>'
+    to_terse = f'<p>Terse version of report <a href="{cfg.http_terse}">TERSE</a>.</p>'
+    to_verbose = f'<p>Verbose version of report <a href="{cfg.http_verbose}">VERBOSE</a>.</p>'
 
     # duration = time.time() - start_time
     # output.append(final_footer % duration)
-    output.append(to_terse)        # NOT WORKING
+    output.append(to_terse)
     output.append(final_footer)
-    short_output.append(to_verbose)    # NOT WORKING
+    short_output.append(to_verbose)
     short_output.append(final_footer)
 
     total = ''.join(output)
