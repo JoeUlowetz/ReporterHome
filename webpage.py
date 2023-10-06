@@ -3,6 +3,11 @@
 #               LINKS ARE NOT ALLOWED IN THAT DIRECTORY LIKE I WAS DOING ON RPi's. IT IS A SECURITY RISK TO USE
 #               A LINK IN THIS DIRECTORY, which is why they won't work if I try; links are Forbidden.
 
+"""
+2023.08.22 Changed style section to dark mode, per suggestion from Thor
+2023.09.06 Support new camera status strings
+"""
+
 
 
 
@@ -117,56 +122,60 @@ header = """
 <html lang="en"><body><meta http-equiv="refresh" content="30" >
 <head>
 <style>
+body {
+background-color:#2d2d2d;
+}
 header {
-    text-align: right;
+text-align: right;
     padding: 0 1%;
     }
 h1 {font-family: 'Avenir', sans-serif;
-    font-size: 3em;
+font-size: 3em;
     margin:1 0;
-    padding:0 10;
-    text-align:left;
-    color: #0a0a0a;
+padding:0 10;
+text-align:left;
+color:#FFFFFF;
     font-kerning: auto;
-    }
+}
 h2 {font-family: 'Railway', sans-serif;
-    color: SlateGrey;
+color: SlateGrey;
     }
 table {
     font-family: 'Avenir', sans-serif;
     padding:4;
-    color: #0a0a0a;
+    color: #ffffff;
     }
 th {
-    border:0;
+border:0;
     padding:10;
     }
 .wrap {
     width: 80%;
     margin: 0 auto;
-    }
+}
 .printer td{
-    text-align: left;
-    }        
+text-align: left;
+}        
 .progress td {border: 0;
-    border-left: 1px solid #ddd;
-    text-align: center;
+border-left: 1px solid #ddd;
+text-align: center;
     padding: 2
     }
 .progress td:first-child {
     border-left: none;
-    }	
+}
 tr:nth-child(even) {
-    background-color: #f9f9f9;
+    background-color: #3D3D3D;
     }
 .bold {font-weight: bold}
 .tomato {background-color: Tomato}
 .dodger {background-color: DodgerBlue}
-.LightGray {background-color: LightGray}
-.MediumSeaGreen {background-color: MediumSeaGreen}
-.Violet {background-color: Violet}
-.Gray {background-color: Gray}
-.Orange {background-color: Orange}
+.yellow {color: blue; background-color: Yellow}
+.blue {color: yellow; background-color: blue}
+.violet {background-color: Violet}
+.lightgray {color: black; background-color: LightGray}
+.mediumseagreen {background-color: MediumSeaGreen}
+.orange {font-weigtht: 700; color: blue; background-color: Orange}
 
 .row {
   display: flex;
@@ -191,6 +200,7 @@ tr:nth-child(even) {
   flex: 2;
   margin: 0 10px;
 }
+
 </style>
 </head>\n
 """
@@ -242,13 +252,16 @@ section_footer = '</div></br>\n'
 
 # *SECTION, PART-4*  wrap w/ <table>...</table>
 # platen_str = '<tr><td>Platen classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-platen_str = """<tr><td>Platen classifier:</td><td class="%s">%s</td></tr>\n"""
+# platen_str = """<tr><td>Platen classifier:</td><td class="%s">%s</td></tr>\n"""
+platen_str = """<tr><td>Platen Camera:</td><td class="%s">%s</td></tr>\n"""
 
 # outfeed_str = '<tr><td>Outfeed classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-outfeed_str = """<tr><td>Outfeed classifier:</td><td class="%s">%s</td></tr>\n"""
+#outfeed_str = """<tr><td>Outfeed classifier:</td><td class="%s">%s</td></tr>\n"""
+outfeed_str = """<tr><td>Outfeed Camera:</td><td class="%s">%s</td></tr>\n"""
 
 # stacker_str = '<tr><td>Stacker classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-stacker_str = """<tr><td>Stacker classifier:</td><td class="%s">%s</td></tr>\n"""
+# stacker_str = """<tr><td>Stacker classifier:</td><td class="%s">%s</td></tr>\n"""
+stacker_str = """<tr><td>Stacker Camera:</td><td class="%s">%s</td></tr>\n"""
 
 # *SECTION, PART-5*
 dev_end = '</dev>\n'
@@ -309,9 +322,22 @@ def display_status(prt, output):
             <th>Start Time</th>
             <th>End Time</th>
             <th>Restarted</th>
-            <th>Unattended</th>
             </tr>
         """
+
+    # old version w/ Unattended column
+    """<div class="progress center column2"><table border="1" style='border: 1px solid black; border-radius: 10px;'>
+        <tr>
+        <th>Date</th>
+        <th>Active</th> 
+        <th>Pages</th>
+        <th>Start Time</th>
+        <th>End Time</th>
+        <th>Restarted</th>
+        <th>Unattended</th>
+        </tr>
+    """
+
     output.append(progress_table_start)
 
     day_list = status_list[prt]     # could be empty
@@ -347,7 +373,7 @@ def display_status(prt, output):
             output.append(f'<td style="text-align: center">{day_item[3]}</td>')   # Start time
             output.append(f'<td style="text-align: center">{day_item[4]}</td>')   # End time
             output.append(f'<td style="text-align: center">{day_item[5]}</td>')   # Restarted
-            output.append(f'<td style="text-align: center">{day_item[6]}</td>')   # Unattended
+            # output.append(f'<td style="text-align: center">{day_item[6]}</td>')   # Unattended
             output.append('</tr>\n')
 
     # add table line for today
@@ -376,7 +402,7 @@ def display_status(prt, output):
         output.append(f'<td style="text-align: center">{data[3]}</td>')    # today start
         output.append(f'<td style="text-align: center">{data[4]}</td>')    # today end
         output.append(f'<td style="text-align: center">{data[5]}</td>')    # Restarted
-        output.append(f'<td style="text-align: center">{data[6]}</td>')    # Unattended
+        # output.append(f'<td style="text-align: center">{data[6]}</td>')    # Unattended
         output.append('</tr>\n')
 
     output.append('</table></div>')   # end of this table
@@ -703,18 +729,51 @@ def catchup(filename):
     except:
         print(f"No {filename}, run anyway")
 
+
 def set_camera_color(status):
     # Working, Disabled, Partial, Not active, Not configured
-    if status == "Not configured":
+    """
+    New status strings that can be received here:
+        "Camera is OK",             x # camera_mode = NORMAL
+        "Camera is OK",             x # camera_mode = NORMAL   (obsolete)
+        "Camera ignores errors",     # camera_mode = REPORT_SUCCESS
+        "Camera Image Capture OK",   # camera_mode = IMAGE_ONLY
+        "Camera DOWN",              x # camera did not connect when printer started
+        "Camera Not Working",       x # camera connected to printer, but later something went wrong and camera disabled itself
+        "camera not configured",    x # camera not configured in machine.cfg file
+        "Software Error!",           # software error (hasn't happened; checks for certain conditions)
+        "in TESTMODE",
+        "Camera Started"            x # camera initially connected to printer, but printer has not taken any images yet
+    """
+    # if status == "Not configured":
+    #     return 'LightGray'
+    # if status == "Working":
+    #     return 'MediumSeaGreen'
+    # if status == "Not active":
+    #     return 'Tomato'
+    # if status == "Partial":
+    #     return 'Tomato'
+    # if status == 'Disabled':
+    #     return 'Violet'
+    # else:
+    #     return 'DodgerBlue'
+
+    if 'Disabled' in status or 'Not Working' in status:      # check this before checking 'Working' below
+        return 'Violet'
+    if 'Hung!' in status or 'hung' in status:      # check this before checking 'Working' below
+        return 'orange'
+    if 'Image Capture OK' in status:        # check this before checking "OK" below
+        return 'Blue'
+    if "Not configured" in status or 'not configured' in status or 'Not Configured' in status:
         return 'LightGray'
-    if status == "Working":
+    if "Working" in status or 'OK' in status or 'Started' in status:
         return 'MediumSeaGreen'
-    if status == "Not active":
+    if "Not active" in status or 'DOWN' in status:
         return 'Tomato'
     if status == "Partial":
         return 'Tomato'
-    if status == 'Disabled':
-        return 'Violet'
+    if 'ignores errors' in status or 'Ignores Errors' in status:
+        return 'Yellow'
     else:
         return 'DodgerBlue'
 
