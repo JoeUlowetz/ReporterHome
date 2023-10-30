@@ -2,10 +2,24 @@
 # *** REMINDER: THE WEB TARGET FILE IN webpage.py MUST BE WRITTEN DIRECTLY TO /var/www/html/report.html BECAUSE
 #               LINKS ARE NOT ALLOWED IN THAT DIRECTORY LIKE I WAS DOING ON RPi's. IT IS A SECURITY RISK TO USE
 #               A LINK IN THIS DIRECTORY, which is why they won't work if I try; links are Forbidden.
+import datetime
+import ast
+import time
+from logger import set_logger, log_event
+import os
+import reporter_config as cfg
+from copy import deepcopy
 
 """
 2023.08.22 Changed style section to dark mode, per suggestion from Thor
 2023.09.06 Support new camera status strings
+2023.10.06 Added counting of pause reasons
+
+TODO:
+    today_pause_lists  for today info
+    create storage for past days
+    watch time, and when midnight wraps, push today info to yesterday storage, going back X days; when doing this, write to text files
+    
 """
 
 
@@ -60,12 +74,6 @@ Other types w/o 'state':
     'Job_config_file'       < this info is already with the 'model_name' field
 
 """
-import datetime
-import ast
-import time
-from logger import set_logger, log_event
-import os
-import reporter_config as cfg
 
 web_target = cfg.web_target                     # "/var/www/html/report.html"
 web_target_short = cfg.web_target_short        # "/var/www/html/report_short.html"
@@ -99,6 +107,11 @@ platen_camera_color = [None] * control_list_length
 outfeed_camera_color = [None] * control_list_length
 stacker_camera_color = [None] * control_list_length
 
+# 2023.10.27 JU
+platen_camera_throttled = ['x'] * control_list_length
+outfeed_camera_throttled = [''] * control_list_length
+stacker_camera_throttled = [''] * control_list_length
+
 status_list = [None] * control_list_length
 # status_list is a list of length control_list_length
 # each entry in status_list is a list of a variable number of status_entries (could be empty)
@@ -114,6 +127,8 @@ today_list = [None] * control_list_length
 #   today_list =  [prt1_today, prt2_today, prt3_today, prt4_today, ...]
 #   prt1_today = [ '87%', 123, '07:34', '16:20' ]   which is [ active%, pages, start time, end time]
 
+today_pause_lists = [None] * control_list_length
+# Each entry here is a dict with key=pause_reason, value=count greater than 0
 
 # constants to build html later
 #header = '<html lang="en"><body><meta http-equiv="refresh" content="30" ><head><style>td {border: 0}</style></head>\n'     # Note: this number is auto web page refresh interval
@@ -249,19 +264,13 @@ table_1_end = "</table>\n"
 
 section_footer = '</div></br>\n'
 
-
+# 2023.10.27 JU: add additional parameter to show throttled status, if any
 # *SECTION, PART-4*  wrap w/ <table>...</table>
-# platen_str = '<tr><td>Platen classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-# platen_str = """<tr><td>Platen classifier:</td><td class="%s">%s</td></tr>\n"""
-platen_str = """<tr><td>Platen Camera:</td><td class="%s">%s</td></tr>\n"""
+platen_str = """<tr><td>Platen Camera:%s</td><td class="%s">%s</td></tr>\n"""
 
-# outfeed_str = '<tr><td>Outfeed classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-#outfeed_str = """<tr><td>Outfeed classifier:</td><td class="%s">%s</td></tr>\n"""
-outfeed_str = """<tr><td>Outfeed Camera:</td><td class="%s">%s</td></tr>\n"""
+outfeed_str = """<tr><td>Outfeed Camera:%s</td><td class="%s">%s</td></tr>\n"""
 
-# stacker_str = '<tr><td>Stacker classifier:</td><td></td><td style="background-color:%s;">%s</td><td></td></tr>\n'
-# stacker_str = """<tr><td>Stacker classifier:</td><td class="%s">%s</td></tr>\n"""
-stacker_str = """<tr><td>Stacker Camera:</td><td class="%s">%s</td></tr>\n"""
+stacker_str = """<tr><td>Stacker Camera:%s</td><td class="%s">%s</td></tr>\n"""
 
 # *SECTION, PART-5*
 dev_end = '</dev>\n'
@@ -298,7 +307,43 @@ def format_as_of(tstamp):
     return time.strftime("since %A %B %d, %H:%M", time.localtime(tstamp))   # "since Monday March 15, 17:40"
 
 
-def log_page_problems(report_dict):
+def count_pause_reasons(report_dict):
+    """
+    Note: currently 'pause_reason' comes on both 'state' and 'state2' messages; don't double count; just use one of them.
+
+    Look at the current date to see when to roll counts over from today to previous day.
+    :param report_dict:
+        report_dict['pause_reason']  count occurrances of each type
+        report_dict['printer']      this will be 153, 154, 158, etc; identify the printer it is for
+
+    :return:    True if something changed, False if no change
+    """
+    if 'pause_reason' not in report_dict:
+        return False      # this is not a record we are interested in
+    if 'state2' in report_dict:
+        return False     # don't double-count, just look at 'state' reports
+
+    printer_name = report_dict.get('printer')
+    reason = report_dict.get('pause_reason')
+
+    index = control_list.index(printer_name)
+    if index > control_list_length:
+        print("BUG in count_pause_reason")
+        return
+
+    if today_pause_lists[index] is None:
+        today_pause_lists[index] = {}       # initialize fresh dictionary
+
+    if reason in today_pause_lists[index]:
+        today_pause_lists[index][reason] += 1
+    else:
+        today_pause_lists[index][reason] = 1
+
+    return True
+
+
+
+def log_page_problems(report_dict):     # TODO: change this to count occurrances of pause reasons per printer, per day
     # Note: "problem_pages.txt" is to record when the printer was paused, or when "set page number" is used
     if 'pause_reason' in report_dict or 'Set_next_page_to_print' in report_dict:
         f = open(problem_pages, 'a')
@@ -358,11 +403,11 @@ def display_status(prt, output):
                 print("---invalid date--")
                 continue
 
-            print(f"*** day_item: {day_item}")
-            print(f"*** the_date: {the_date}")
+            # print(f"*** day_item: {day_item}")
+            # print(f"*** the_date: {the_date}")
             if '-' in the_date:
                 dt = datetime.datetime.strptime(the_date, "%Y-%m-%d")   # reformat the date
-                print(dt)
+                # print(dt)
                 the_date = dt.strftime("%a %m/%d")  # Mon 03/24
             # else use as-is
 
@@ -418,7 +463,11 @@ def receive(report_dict):
     print("--receive--")
     # details = []
     # details.append("%s : receive ----------" % timestamper())
-    log_page_problems(report_dict)
+    # log_page_problems(report_dict)    # obsolete
+    refresh_pause_page = count_pause_reasons(report_dict)
+
+    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    print(report_dict)
 
     # 2022.05.20 JU: fixed so either format of printer name will work
     # 2023.03.07 JU: changed again so driven by control_list variable defined at head of this file
@@ -433,7 +482,7 @@ def receive(report_dict):
 
     # details.append("Printer index = %d" % prt)
     # All the remaining fields get parsed/used by the one particular printer this message is for
-    if report_dict.get('timestamp') is not None:        #     2023.06.21 JU: changed to use get
+    if report_dict.get('timestamp') is not None:        # 2023.06.21 JU: changed to use get
         ts = float(report_dict['timestamp'])
         timestamp[prt] = format_as_of(ts)
         # details.append("timestamp is present")
@@ -553,6 +602,50 @@ def receive(report_dict):
     if 'job_polymer' in report_dict:
         polymer[prt] = report_dict['job_polymer']
 
+    # 2023.10.27 JU added
+    if 'platen_throttled' in report_dict:
+        value1 = report_dict['platen_throttled']
+        if value1 is None:
+            platen_camera_throttled[prt] = ' 1'
+        elif value1.strip() == '0x0':
+            platen_camera_throttled[prt] = ' 2'
+        elif value1.strip() == '0x50005':
+            platen_camera_throttled[prt] = '--throttled NOW--'
+        elif value1.strip() == '0x50000':
+            platen_camera_throttled[prt] = '--throttled--'
+        else:
+            # not sure what other values might be here; fix this when I know better
+            platen_camera_throttled[prt] = ' %s ' % value1
+
+    if 'outfeed_throttled' in report_dict:
+        value2 = report_dict['outfeed_throttled']
+        if value2 is None:
+            outfeed_camera_throttled[prt] = ''
+        elif value2.strip() == '0x0':
+            outfeed_camera_throttled[prt] = ''
+        elif value2.strip() == '0x50005':
+            outfeed_camera_throttled[prt] = '--throttled NOW--'
+        elif value2.strip() == '0x50000':
+            outfeed_camera_throttled[prt] = '--throttled--'
+        else:
+            # not sure what other values might be here; fix this when I know better
+            outfeed_camera_throttled[prt] = ' %s ' % value2
+
+    if 'stacker_throttled' in report_dict:
+        value3 = report_dict['stacker_throttled']
+        if value3 is None:
+            stacker_camera_throttled[prt] = ''
+        elif value3.strip() == '0x0':
+            stacker_camera_throttled[prt] = ''
+        elif value3.strip() == '0x50005':
+            stacker_camera_throttled[prt] = '--throttled NOW--'
+        elif value3.strip() == '0x50000':
+            stacker_camera_throttled[prt] = '--throttled--'
+        else:
+            # not sure what other values might be here; fix this when I know better
+            stacker_camera_throttled[prt] = ' %s ' % value3
+
+
     if report_dict.get('hist_stats') is not None:     # Previous days: this is only sent out when the printer starts, so someone manually runs the report    2023.06.21 JU: changed to use get
         print(f"JOE  hist_stats found")
         hist_stats = report_dict['hist_stats']
@@ -639,12 +732,11 @@ def receive(report_dict):
         # TODO: this is to reduce the amount of screen space taken up by each printer section, so we can eventually have 4 (or 5) displayed.
         section_output.append('<table>')
         if platen_camera_status[i] is not None:
-            line = platen_str % (platen_camera_color[i], platen_camera_status[i])
-            section_output.append(line)
+            section_output.append(platen_str % (platen_camera_throttled[i], platen_camera_color[i], platen_camera_status[i]))
         if outfeed_camera_status[i] is not None:
-            section_output.append(outfeed_str % (outfeed_camera_color[i], outfeed_camera_status[i]))
+            section_output.append(outfeed_str % (outfeed_camera_throttled[i], outfeed_camera_color[i], outfeed_camera_status[i]))
         if stacker_camera_status[i] is not None:
-            section_output.append(stacker_str % (stacker_camera_color[i], stacker_camera_status[i]))
+            section_output.append(stacker_str % (stacker_camera_throttled[i], stacker_camera_color[i], stacker_camera_status[i]))
         section_output.append('</table>')
 
         section_output.append(section_footer)
@@ -675,14 +767,53 @@ def receive(report_dict):
 
     total = ''.join(output)
     f = open(web_target, 'w')
-    f.write(total)
+    f.write(total)                      # <<<< Write updated web page (full) here
     f.close()
 
     short_total = ''.join(short_output)
     f = open(web_target_short, 'w')
-    f.write(short_total)
+    f.write(short_total)                # <<<< Write updated web page (terse) here
     f.close()
 
+    if refresh_pause_page:
+        pass    # TODO: update web page showing pause reasons
+
+        # temp code  DOESN'T WORK FOR SOME REASON:
+        """
+        
+        ----------------------------------------
+        Exception happened during processing of request from ('10.1.10.110', 59982)
+        Traceback (most recent call last):
+          File "/usr/lib64/python3.6/socketserver.py", line 320, in _handle_request_noblock
+            self.process_request(request, client_address)
+          File "/usr/lib64/python3.6/socketserver.py", line 351, in process_request
+            self.finish_request(request, client_address)
+          File "/usr/lib64/python3.6/socketserver.py", line 364, in finish_request
+            self.RequestHandlerClass(request, client_address, self)
+          File "/usr/lib64/python3.6/socketserver.py", line 724, in __init__
+            self.handle()
+          File "ReporterHome.py", line 157, in handle
+            webpage.receive(input_data_dict)    # <<<<<<<<<<< This is where OLD web page gets updated
+          File "/home/julowetz/ReporterHomeDev/webpage.py", line 793, in receive
+            for key, value in today_pause_lists[index]:
+        ValueError: too many values to unpack (expected 2)
+        ----------------------------------------
+
+
+
+        with open('pause_reasons.txt', 'w') as f:
+            for index in range(control_list_length):
+                printer = control_list[index]
+                f.write(f"\nPrinter #{printer}\n")
+                if today_pause_lists[index] is not None:
+                    if type(today_pause_lists[index]) is dict:
+                        for key, value in today_pause_lists[index]:
+                            f.write('%-10s  %d' % (key, value))
+                    else:
+                        f.write('Type of list: %s' % str(type(today_pause_lists[index])))
+                else:
+                    f.write('No entries for this printer')
+        """
 
 def catchup(filename):
     # reload existing report file so web page shows most recent values

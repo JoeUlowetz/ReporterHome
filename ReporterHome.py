@@ -23,6 +23,10 @@
 
  Service file: /etc/systemd/system/ReporterHome.service
 
+
+ >> For TESTING, if the service is stopped, it can be run MANUALLY as:  sudo python3 ReporterHome.py
+
+
  Python libraries you may have to load
 """
 
