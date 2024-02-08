@@ -40,6 +40,7 @@ from logger import set_logger, log_event
 from pathlib import Path
 import os
 import webpage
+# import webpage2
 import sys
 import reporter_config as cfg
 
@@ -158,7 +159,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 with open(target, 'a') as f:
                     f.write("%s\n" % str(input_data_dict))
                 trace_it.append(82)
-                webpage.receive(input_data_dict)    # <<<<<<<<<<< This is where OLD web page gets updated
+                if 'release_control' in input_data_dict:
+                    pass    # TODO: this is where the Release Control web page is built
+                    # Todo:  webpage2.receive(input_data_dict)
+                else:
+                    webpage.receive(input_data_dict)    # <<<<<<<<<<< This is where the web page gets updated
                 trace_it.append(83)
 
                 output_data_dict = {

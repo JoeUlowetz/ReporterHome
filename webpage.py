@@ -112,6 +112,9 @@ platen_camera_throttled = ['x'] * control_list_length
 outfeed_camera_throttled = [''] * control_list_length
 stacker_camera_throttled = [''] * control_list_length
 
+# 2024.02.08 JU: add source code report page storage
+source_code_report = [''] * control_list_length
+
 status_list = [None] * control_list_length
 # status_list is a list of length control_list_length
 # each entry in status_list is a list of a variable number of status_entries (could be empty)
@@ -191,6 +194,7 @@ tr:nth-child(even) {
 .lightgray {color: black; background-color: LightGray}
 .mediumseagreen {background-color: MediumSeaGreen}
 .orange {font-weigtht: 700; color: blue; background-color: Orange}
+.red {color: white; background-color: Red}
 
 .row {
   display: flex;
@@ -228,17 +232,24 @@ date_header = '<header><h2>%s</h2></header>\n'
 class_wrap = '<div class="wrap"><br>\n'
 
 # *SECTION-1, PART-1*
-section_start = '<section class="row"><div class="printer column1" border="1" style=\'border: 1px solid black; border-radius: 10px;\'><h1>%s</h1><table>\n'
+section_start = """<section class="row"><div class="printer column1" border="1" style="border: 1px solid black; border-radius: 10px;"><h1>%s</h1><table>\n"""
 
 # *SECTION, PART-2*
 # status = '<table><tr><td>Status</td><td style="background-color:%s;">%s</td><td></td><td>%s</td></tr>\n'
-status = """<tr><td>Status:</td><td style="background-color:%s;">%s</td><td>%s</td></tr>"""
+status = """<tr>
+    <td><a href="%s" style="color:#ffffff;">Status:</a></td>
+    <td style="background-color:%s;">%s</td>
+    <td>%s</td>
+</tr>"""
 
 # p_reason = '<tr><td>Pause reason</td><td></td><td style="background-color:Orange;">%s</td><td></td><td></td></tr>\n'
 p_reason = """<tr><td>Pause reason:</td><td style="background-color:Orange;">%s</td><td></td></tr>\n"""
 
 # page = '<tr><td>Page</td><td></td><td style="font-weight:bold">%d of %d</td><td></td><td>%s</td></tr>\n'
-page = """<tr><td>Page:</td><td class="bold">%d of %d</td><td>%s</td></tr>\n"""
+page = """<tr><td>Page:</td>
+    <td class="bold">%d of %d</td>
+    <td>%s</td>
+</tr>\n"""
 
 # traveler = '<tr><td>Traveler #</td><td></td><td style="font-weight:bold">%s</td><td></td><td></td></tr>\n'
 traveler = """<tr><td>Traveler #:</td><td class="bold">%s</td><td></td></tr>\n"""
@@ -281,11 +292,6 @@ dev_end = '</dev>\n'
 final_footer = '</body></html>\n'
 
 detail_index = 0
-
-
-# def timestamper():
-#     nowt = datetime.datetime.now()
-#     return nowt.strftime("%H:%M:%S ")
 
 
 def format_as_of(tstamp):
@@ -340,7 +346,6 @@ def count_pause_reasons(report_dict):
         today_pause_lists[index][reason] = 1
 
     return True
-
 
 
 def log_page_problems(report_dict):     # TODO: change this to count occurrances of pause reasons per printer, per day
@@ -480,6 +485,19 @@ def receive(report_dict):
 
     prt = control_list.index(printer_name)      # this throws exception if printer_name not in the list
 
+    # 2024.02.08 JU: if this contains the key "SOURCE_REPORT_PART" or "SOURCE_REPORT_TEXT" this data is used for
+    #   the source code difference report page.
+    if 'SOURCE_REPORT_PART' in report_dict:
+        content = report_dict['SOURCE_REPORT_PART']
+        source_code_report[prt] += content
+        return  # wait until entire contents received before doing anything else
+    if 'SOURCE_REPORT_TEXT' in report_dict:
+        content = report_dict['SOURCE_REPORT_TEXT']
+        source_code_report[prt] += content
+
+        create_source_code_page(printer_name, prt)      # this clears source_code_report[prt] when done
+
+
     # details.append("Printer index = %d" % prt)
     # All the remaining fields get parsed/used by the one particular printer this message is for
     if report_dict.get('timestamp') is not None:        # 2023.06.21 JU: changed to use get
@@ -606,9 +624,9 @@ def receive(report_dict):
     if 'platen_throttled' in report_dict:
         value1 = report_dict['platen_throttled']
         if value1 is None:
-            platen_camera_throttled[prt] = ' 1'
+            platen_camera_throttled[prt] = ''
         elif value1.strip() == '0x0':
-            platen_camera_throttled[prt] = ' 2'
+            platen_camera_throttled[prt] = ''
         elif value1.strip() == '0x50005':
             platen_camera_throttled[prt] = '--throttled NOW--'
         elif value1.strip() == '0x50000':
@@ -647,11 +665,8 @@ def receive(report_dict):
 
 
     if report_dict.get('hist_stats') is not None:     # Previous days: this is only sent out when the printer starts, so someone manually runs the report    2023.06.21 JU: changed to use get
-        print(f"JOE  hist_stats found")
         hist_stats = report_dict['hist_stats']
-        print(f"JOE   hist_stats contents: {hist_stats}")
         tup_days = hist_stats.split('|')    # day entries separated by '|'
-        print(f"JOE   hist_stats days: {tup_days}")
         prt_list = []
         for day in tup_days:
             tup_items = day.split(',')      # for one day, the entries are separated by commas; ex: 'Monday 3/06,12%,45,10:10,14:42,5,0% of 5'
@@ -697,7 +712,8 @@ def receive(report_dict):
             nice_name = printer
         section_output = []
         section_output.append(section_start % nice_name)
-        section_output.append(status % (color[i], state[i], timestamp[i]))
+        http_page = cfg.http_source_report % printer    # 2024.02.08 JU: add link to source code report
+        section_output.append(status % (http_page, color[i], state[i], timestamp[i]))
         if state[i] == 'Paused' and pause_reason[i] is not None:
             section_output.append(p_reason % pause_reason[i])
         # calc percent complete, if appropriate
@@ -815,6 +831,28 @@ def receive(report_dict):
                     f.write('No entries for this printer')
         """
 
+
+# ==============================================================================================
+def create_source_code_page(printer_name, prt):
+    pass
+    # stuff happens here
+    tup = source_code_report[prt].split('\n')
+    lines = [f"<title>{printer_name} source report</title><head></head><body>", ]
+    for line in tup:
+        lines.append(f"{line}<br>")
+    lines.append("</body>")
+
+    formatted_lines = "\n".join(lines)
+    filename = f"/var/www/html/source_{printer_name}.html"
+    with open(filename, 'w') as f:
+        f.write(formatted_lines)
+
+
+    source_code_report[prt] = ''        # clear for next time
+
+
+
+# ==============================================================================================
 def catchup(filename):
     # reload existing report file so web page shows most recent values
     # 2023.02.15 JU: only load most recent report data to rebuild the web page
@@ -876,19 +914,10 @@ def set_camera_color(status):
         "in TESTMODE",
         "Camera Started"            x # camera initially connected to printer, but printer has not taken any images yet
     """
-    # if status == "Not configured":
-    #     return 'LightGray'
-    # if status == "Working":
-    #     return 'MediumSeaGreen'
-    # if status == "Not active":
-    #     return 'Tomato'
-    # if status == "Partial":
-    #     return 'Tomato'
-    # if status == 'Disabled':
-    #     return 'Violet'
-    # else:
-    #     return 'DodgerBlue'
 
+    # Reminder: all these color strings must be declared in header html (case insensitive)
+    if 'OVRD' in status:
+        return 'Red'
     if 'Disabled' in status or 'Not Working' in status:      # check this before checking 'Working' below
         return 'Violet'
     if 'Hung!' in status or 'hung' in status:      # check this before checking 'Working' below
@@ -906,7 +935,7 @@ def set_camera_color(status):
     if 'ignores errors' in status or 'Ignores Errors' in status:
         return 'Yellow'
     else:
-        return 'DodgerBlue'
+        return 'Dodger'
 
 
 
