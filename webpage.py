@@ -112,8 +112,10 @@ platen_camera_throttled = ['x'] * control_list_length
 outfeed_camera_throttled = [''] * control_list_length
 stacker_camera_throttled = [''] * control_list_length
 
-# 2024.02.08 JU: add source code report page storage
+# 2024.02.08 JU: buffer used to receive source code report, comes in parts because of size
 source_code_report = [''] * control_list_length
+# after a source_code_report is received, this saves the beginning of that data, so it can be tested for the CHANGED flag
+current_source_code_report_header = [''] * control_list_length
 
 status_list = [None] * control_list_length
 # status_list is a list of length control_list_length
@@ -235,9 +237,14 @@ class_wrap = '<div class="wrap"><br>\n'
 section_start = """<section class="row"><div class="printer column1" border="1" style="border: 1px solid black; border-radius: 10px;"><h1>%s</h1><table>\n"""
 
 # *SECTION, PART-2*
-# status = '<table><tr><td>Status</td><td style="background-color:%s;">%s</td><td></td><td>%s</td></tr>\n'
-status = """<tr>
-    <td><a href="%s" style="color:#ffffff;">Status:</a></td>
+status_tag = """<tr>
+    <td><a href="%s" style="color:#E3D739;" target="_blank" rel="noopener noreferrer">Status:</a></td>
+    <td style="background-color:%s;">%s</td>
+    <td>%s</td>
+</tr>"""
+# use following version if we need to flag that the source report file has changes in it
+status_tag_changed = """<tr>
+    <td><a href="%s" style="color:Blue;background-color:Yellow;font-weight:bold" target="_blank" rel="noopener noreferrer">%s Status:</a></td>
     <td style="background-color:%s;">%s</td>
     <td>%s</td>
 </tr>"""
@@ -277,11 +284,14 @@ section_footer = '</div></br>\n'
 
 # 2023.10.27 JU: add additional parameter to show throttled status, if any
 # *SECTION, PART-4*  wrap w/ <table>...</table>
-platen_str = """<tr><td>Platen Camera:%s</td><td class="%s">%s</td></tr>\n"""
+platen_str_0 = """<tr><td>Platen Camera:%s</td><td class="%s">%s</td></tr>\n"""
+platen_str = """<tr><td><a href="%s" style="color:#E3D739;" target="_blank" rel="noopener noreferrer">Platen Camera:%s</a></td><td class="%s">%s</td></tr>\n"""
 
-outfeed_str = """<tr><td>Outfeed Camera:%s</td><td class="%s">%s</td></tr>\n"""
+outfeed_str_0 = """<tr><td>Outfeed Camera:%s</td><td class="%s">%s</td></tr>\n"""
+outfeed_str = """<tr><td><a href="%s" style="color:#E3D739;" target="_blank" rel="noopener noreferrer">Outfeed Camera:%s</a></td><td class="%s">%s</td></tr>\n"""
 
-stacker_str = """<tr><td>Stacker Camera:%s</td><td class="%s">%s</td></tr>\n"""
+stacker_str_0 = """<tr><td>Stacker Camera:%s</td><td class="%s">%s</td></tr>\n"""
+stacker_str = """<tr><td><a href="%s" style="color:#E3D739;" target="_blank" rel="noopener noreferrer">Stacker Camera:%s</a></td><td class="%s">%s</td></tr>\n"""
 
 # *SECTION, PART-5*
 dev_end = '</dev>\n'
@@ -294,6 +304,67 @@ final_footer = '</body></html>\n'
 detail_index = 0
 
 
+# ==============================================================================
+# Source status web page:
+status_header1 = \
+    """
+    <!DOCTYPE html>
+    <html lang="en">
+    
+    <head>
+      <title>    
+    """
+status_header2 = \
+    """
+      </title>
+      <style>
+        /* Set base styles for tables */
+        body {
+          font-family: 'Avenir', sans-serif;
+            background: #3d3d3d;
+            color:white;
+         }
+        h1 {
+          font-size: 3em;
+          margin: 1 0;
+          padding: 0 10;
+          text-align: left;
+          font-kerning: auto;
+        }
+        table {
+          border-collapse: collapse;
+          width: 100%;
+          margin-bottom: 1rem;
+        }
+        
+        th, td {
+          padding: 0.5rem;
+          text-align: left;
+          border: 1px solid #ddd;
+        }
+        
+        th {
+          background-color: #2D2D2D;
+        }
+        
+        /* Use media queries for responsive adjustments */
+        @media only screen and (max-width: 768px) {
+          table {
+            font-size: 0.8rem;
+          }
+          
+          th, td {
+            padding: 0.25rem;
+          }
+        }
+      </style>
+    </head>
+    
+    <body>
+    """
+
+
+# ==============================================================================
 def format_as_of(tstamp):
     # what day is timestamp?
     date1 = datetime.date.fromtimestamp(tstamp)
@@ -495,7 +566,7 @@ def receive(report_dict):
         content = report_dict['SOURCE_REPORT_TEXT']
         source_code_report[prt] += content
 
-        create_source_code_page(printer_name, prt)      # this clears source_code_report[prt] when done
+        create_source_code_page_new(printer_name, prt)      # this clears source_code_report[prt] when done
 
 
     # details.append("Printer index = %d" % prt)
@@ -713,7 +784,16 @@ def receive(report_dict):
         section_output = []
         section_output.append(section_start % nice_name)
         http_page = cfg.http_source_report % printer    # 2024.02.08 JU: add link to source code report
-        section_output.append(status % (http_page, color[i], state[i], timestamp[i]))
+
+        # change the tag text and color if the change report starts w/ the word "CHANGED"
+        if current_source_code_report_header[i].startswith('CHANGED'):
+            tup = current_source_code_report_header[i].split(' ')
+            msg = tup[0]
+            # section_output.append(status_tag_changed % (http_page, color[i], state[i], timestamp[i]))   # changed
+            section_output.append(status_tag_changed % (http_page, msg, color[i], state[i], timestamp[i]))   # changed
+        else:
+            section_output.append(status_tag % (http_page, color[i], state[i], timestamp[i]))       # not changed
+
         if state[i] == 'Paused' and pause_reason[i] is not None:
             section_output.append(p_reason % pause_reason[i])
         # calc percent complete, if appropriate
@@ -748,11 +828,14 @@ def receive(report_dict):
         # TODO: this is to reduce the amount of screen space taken up by each printer section, so we can eventually have 4 (or 5) displayed.
         section_output.append('<table>')
         if platen_camera_status[i] is not None:
-            section_output.append(platen_str % (platen_camera_throttled[i], platen_camera_color[i], platen_camera_status[i]))
+            section_output.append(platen_str % (cfg.platen_image_pages[i], platen_camera_throttled[i], platen_camera_color[i], platen_camera_status[i]))
         if outfeed_camera_status[i] is not None:
-            section_output.append(outfeed_str % (outfeed_camera_throttled[i], outfeed_camera_color[i], outfeed_camera_status[i]))
+            if cfg.outfeed_image_pages[i] is None:
+                section_output.append(outfeed_str_0 % (outfeed_camera_throttled[i], outfeed_camera_color[i], outfeed_camera_status[i]))
+            else:
+                section_output.append(outfeed_str % (cfg.outfeed_image_pages[i], outfeed_camera_throttled[i], outfeed_camera_color[i], outfeed_camera_status[i]))
         if stacker_camera_status[i] is not None:
-            section_output.append(stacker_str % (stacker_camera_throttled[i], stacker_camera_color[i], stacker_camera_status[i]))
+            section_output.append(stacker_str % (cfg.stacker_image_pages[i], stacker_camera_throttled[i], stacker_camera_color[i], stacker_camera_status[i]))
         section_output.append('</table>')
 
         section_output.append(section_footer)
@@ -831,11 +914,9 @@ def receive(report_dict):
                     f.write('No entries for this printer')
         """
 
-
+"""
 # ==============================================================================================
-def create_source_code_page(printer_name, prt):
-    pass
-    # stuff happens here
+def create_source_code_page(printer_name, prt):     # OLD VERSION; REPLACED W/ FOLLOWING FUNCTION
     tup = source_code_report[prt].split('\n')
     lines = [f"<title>{printer_name} source report</title><head></head><body>", ]
     for line in tup:
@@ -849,7 +930,97 @@ def create_source_code_page(printer_name, prt):
 
 
     source_code_report[prt] = ''        # clear for next time
+"""
 
+
+# ==============================================================================================
+def create_source_code_page_new(printer_name, prt):
+    # Section 1: Source code difference report for printer...
+    # Section 2: Changed Individual files
+    # Section 3: Current Firmware versions
+    # Section 4: <extra blank line; skip>
+    # Section 5: Platen Camera source code report...
+    # Section 6: Outfeed Camera source code report...
+    # Section 7: Stacker Camera source code report
+    # append standard ending text here to finish
+
+    section = 1
+    sub_section = 0   # 0 = reading section title, 1= section separator(ignore),
+        # 2=section content line, read until blank found then incr section
+    tup = source_code_report[prt].split('\n')
+    lines = []
+    lines.append(status_header1)
+    lines.append(printer_name)
+    lines.append(status_header2)
+    if source_code_report[prt].startswith('CHANGED'):
+        lines.append("<p>CHANGED1 means printer code in SWZP or its Python libraries has changed")
+        lines.append("<p>CHANGED2 means the firmware compile date(s) have changed")
+        lines.append("<p>CHANGED3 means the camera code in one or more Raspberry Pi's have changed")
+        lines.append("<p>If more than one section changed, the numbers will concantinate, ex. CHANGED123")
+    for line in tup:
+        if sub_section == 0:
+            if len(line) < 5:
+                # this is an extra blank line; ignore it
+                continue
+            if "Reminder:" in line:
+                # this starts the final section; just copy data and stop here
+                lines.append("<p>Reminder: this report only updates when the printer software restarts. Any source code changes to either the PC or Raspberry Pi code will not be reflected here until the printer next restarts.")
+                # lines.append("<p>To return to the previous page use the browser Back button")     # No longer needed because links open in new tabs
+                lines.append("</body></html>")
+                break
+            # reading header line
+            lines.append(f"<h2>{line}</h2>")
+            if "not available" in line:
+                # special case where no text follows this; leave sub_section = 0
+                section += 1
+                continue
+            sub_section += 1
+            continue
+        if sub_section == 1:
+            # skip this line; use it to start table
+            lines.append(f'<table class="section-{section}">')
+            sub_section += 1
+            continue
+
+        # else sub_section == 2
+        if len(line) < 5:
+            # this line is blank; it separates sections
+            lines.append("</table>")
+            section += 1
+            sub_section = 0
+            continue
+
+        # separate content line into 2 or 3 parts separated by ':'
+        if section == 3:
+            tup = line.split(':', 2)    # only for firmware
+        else:
+            tup = line.split(':', 1)
+        if len(tup) not in [2, 3]:
+            # error
+            lines.append(f"<p>Error: {line}")
+        else:
+            tup2 = tup[1].split(',')
+            if len(tup2) > 1:
+                # make sure comma separated lists include space after the comma
+                lines2 = []
+                for entry in tup2:
+                    lines2.append(entry)
+                new_value = ", ".join(lines2)
+                lines.append(f"<tr><th>{tup[0]}</th><td>{new_value}</td></tr>")
+            else:
+                if len(tup) == 3:
+                    lines.append(f"<tr><th>{tup[0]}</th><td>{tup[1]}</td><td>{tup[2]}</td></tr>")   # firmware line
+                else:
+                    lines.append(f"<tr><th>{tup[0]}</th><td>{tup[1]}</td></tr>")
+
+
+    formatted_lines = "\n".join(lines)
+    filename = f"/var/www/html/source_{printer_name}.html"
+    with open(filename, 'w') as f:
+        f.write(formatted_lines)
+
+    current_source_code_report_header[prt] = source_code_report[prt][0:20]      # save start of this file
+    source_code_report[prt] = ''        # clear for next time
 
 
 # ==============================================================================================
