@@ -39,72 +39,140 @@ in the module statistics.py
 
 #=============================================================================================================
 
-"""
-# Setup for DEVELOPMENT version
-# Used in ReporterHome.py
-ip = "10.1.8.30"
-port = 65001
-target_base = "/home/julowetz/ReporterHomeDev/Data"
-raw_target = "reports.txt"
+import os
+import pika
+cwd = os.getcwd()
 
-# Used in webpage.py
-web_target = "/var/www/html/report_dev.html"        # NOTE: underscore, not dash
-test_web_target = "/home/julowetz/ReporterHomeDev/Data/test.html"
-web_target_short = "/var/www/html/report_short_dev.html"
-detail_target_base = "/home/julowetz/ReporterHomeDev/details"
-problem_pages = "/home/julowetz/ReporterHomeDev/Data/problem_pages.txt"
-http_terse = "https://io-web.io.local/report_short_dev.html"
-http_verbose = "https://io-web.io.local/report_dev.html"
+# common stuff for RabbitMQ (this can also run from ReporterHome.write_to_rabbitmq() in case connection goes down)
+connection = pika.BlockingConnection(
+    pika.ConnectionParameters(host='localhost'))
+queue = 'webpub'
+channel = connection.channel()
+channel.queue_declare(queue=queue)
 
-http_source_report = "https://io-web.io.local/source_%s.html"       # use printer name (e.g. 158) as parameter here
+# Control which config to use by whether we are running in the Dev directory or not!
+if 'ReporterHomeDev' in cwd:
 
-# List of printers to show on the web page; the spellings here must exactly match what the printers send
-# in the "printer" field of the message. Printers not listed here are ignored. Any number of printers can
-# be added here.
-control_list = ['JoeWork', '153', '154', '155', '158']
-platen_image_pages = ['http://10.1.9.1', 'http://10.1.9.11', 'http://10.1.9.4', 'http://10.1.9.14', 'http://10.1.9.7']
-outfeed_image_pages = ['http://10.1.9.2', 'http://10.1.9.112', 'http://10.1.9.5', 'http://10.1.9.15', 'http://10.1.9.8']    # TODO: temp change for 153 Outfeed IP addr
-stacker_image_pages = ['http://10.1.9.3', 'http://10.1.9.13', None, 'http://10.1.9.16', 'http://10.1.9.9']     # note: 154 does not have stacker yet, but will someday
+    # Setup for DEVELOPMENT version
+    # Used in ReporterHome.py
+    ip = "10.1.8.30"
+    port = 65001
+    target_base = "/home/julowetz/ReporterHomeDev/Data"
+    raw_target = "reports.txt"
+    sys_ver = "*DEV*"           # used for print statements so I can sort out DEV from PROD
 
-# used in logger.py
-log_file_location = "/home/julowetz/ReporterHomeDev/logfiles/report_logfile.log"
-logger_name = "ReporterHomeDev"
-"""
-# ---------------------------------------------------------------------------------------
 
-# Setup for ***Prod*** version
-# Used in ReporterHome.py
-ip = "10.1.8.30"
-port = 65000
-target_base = "/home/julowetz/ReporterHome/Data"
-raw_target = "reports.txt"
+    use_rabbitmq = False        # <<< control whether to use RabbitMQ for sending data to web app
 
-# Used in webpage.py
-web_target = "/var/www/html/report.html"
-web_target_short = "/var/www/html/report_short.html"
-test_web_target = "/home/julowetz/ReporterHome/Data/test.html"
-detail_target_base = "/home/julowetz/ReporterHome/details"
-problem_pages = "/home/julowetz/ReporterHome/Data/problem_pages.txt"
-http_terse = "https://io-web.io.local/report_short.html"
-http_verbose = "https://io-web.io.local/report.html"
 
-http_source_report = "https://io-web.io.local/source_%s.html"       # use printer name (e.g. 158) as parameter here
+    #
+    # Used for direct write to web server location, use_rabbitmq = False
+    #
+    web_target = "/var/www/html/report_dev.html"
+    web_target_orig = "/var/www/html/report_orig_dev.html"
+    web_target_short = "/var/www/html/report_short_dev.html"
 
-# List of printers to show on the web page; the spellings here must exactly match what the printers send
-# in the "printer" field of the message. Printers not listed here are ignored. Any number of printers can
-# be added here.
-#control_list = ['154', '158', '153', '155']
-#platen_image_pages = ['http://10.1.9.4', 'http://10.1.9.7', 'http://10.1.9.11', 'http://10.1.9.14']
-#outfeed_image_pages = ['http://10.1.9.5', 'http://10.1.9.8', 'http://10.1.9.112', 'http://10.1.9.15']    # TODO: temp change for 153 Outfeed IP addr
-#stacker_image_pages = [None, 'http://10.1.9.9', 'http://10.1.9.13', 'http://10.1.9.16']     # note: 154 does not have stacker yet, but will someday
-# 2024.06.06 JU: re-ordered the printer list
-control_list = ['153', '154', '155', '158']
-platen_image_pages = ['http://10.1.9.11', 'http://10.1.9.4', 'http://10.1.9.14', 'http://10.1.9.7']
-outfeed_image_pages = ['http://10.1.9.112', 'http://10.1.9.5', 'http://10.1.9.15', 'http://10.1.9.8']    # TODO: temp change for 153 Outfeed IP addr
-stacker_image_pages = ['http://10.1.9.13', None, 'http://10.1.9.16', 'http://10.1.9.9']     # note: 154 does not have stacker yet, but will someday
+    #
+    # Used for buffering to RabbitMQ queue, use_rabbitmq = True
+    #
+    base_web_target = "report_dev.html"                 # new version w/ camera images shown
+    base_web_target_orig = "report_orig_dev.html"       # version without images (original webpage)
+    base_web_target_short = "report_short_dev.html"     # terse version w/o daily stats
 
-# used in logger.py
-log_file_location = "/home/julowetz/ReporterHome/logfiles/report_logfile.log"
-logger_name = "ReporterHome"
+
+    # test_web_target = "/home/julowetz/ReporterHomeDev/Data/test.html"       # DEPRECATED
+    # detail_target_base = "/home/julowetz/ReporterHomeDev/details"           # DEPRECATED
+
+
+    problem_pages = "/home/julowetz/ReporterHomeDev/Data/problem_pages.txt"
+    http_terse = "http://io-web.io.local/report_short_dev.html"
+    http_verbose = "http://io-web.io.local/report_dev.html"
+    http_orig = "http://io-web.io.local/report_orig_dev.html"
+
+
+
+    source_report = "/var/www/html/source_%s.html"      # used with printer_name to generate source code change report
+
+    http_source_report = "http://io-web.io.local/source_%s.html"       # use printer name (e.g. 158) as parameter here
+
+    # List of printers to show on the web page; the spellings here must exactly match what the printers send
+    # in the "printer" field of the message. Printers not listed here are ignored. Any number of printers can
+    # be added here.
+    control_list = ['JoeWork', '153', '154', '155', '158']
+    platen_image_pages = ['http://10.1.9.1', 'http://10.1.9.11', 'http://10.1.9.4', 'http://10.1.9.14', 'http://10.1.9.7']
+    outfeed_image_pages = ['http://10.1.9.2', 'http://10.1.9.112', 'http://10.1.9.5', 'http://10.1.9.15', 'http://10.1.9.8']    # TODO: temp change for 153 Outfeed IP addr
+    stacker_image_pages = ['http://10.1.9.3', 'http://10.1.9.13', None, 'http://10.1.9.16', 'http://10.1.9.9']     # note: 154 does not have stacker yet, but will someday
+
+    # this list in same order as control_list, with address for CURRENT.jpg image, plus %s to use for inserting value to make each request unique
+    printer_images = ['http://10.1.9.3/CURRENT.jpg?%s',
+                      'http://10.1.9.13/CURRENT.jpg?%s',
+                      'http://10.1.9.5/CURRENT.jpg?%s',         # outfeed image because 154 doesn't have a stacker camera
+                      'http://10.1.9.16/CURRENT.jpg?%s',
+                      'http://10.1.9.9/CURRENT.jpg?%s' ]
+
+    # used in logger.py
+    log_file_location = "/home/julowetz/ReporterHomeDev/logfiles/report_logfile.log"
+    logger_name = "ReporterHomeDev"
+
+else:    # ---------------------------------------------------------------------------------------
+
+    # Setup for ***Prod*** version
+    # Used in ReporterHome.py
+    ip = "10.1.8.30"
+    port = 65000
+    target_base = "/home/julowetz/ReporterHome/Data"
+    raw_target = "reports.txt"
+    sys_ver = "*PROD*"           # used for print statements so I can sort out DEV from PROD
+
+
+    use_rabbitmq = False        # <<< control whether to use RabbitMQ for sending data to web app
+
+
+    #
+    # Used for direct write to web server location, use_rabbitmq = False
+    #
+    web_target = "/var/www/html/report.html"
+    web_target_orig = "/var/www/html/report_orig.html"
+    web_target_short = "/var/www/html/report_short.html"
+
+
+    #
+    # Used for buffering to RabbitMQ queue, use_rabbitmq = True
+    #
+    base_web_target = "report.html"                     # new version w/ camera images shown
+    base_web_target_orig = "report_orig.html"           # version without images (original webpage)
+    base_web_target_short = "report_short.html"         # terse version w/o daily stats
+
+
+    # test_web_target = "/home/julowetz/ReporterHome/Data/test.html"          # DEPRECATED
+    # detail_target_base = "/home/julowetz/ReporterHome/details"              # DEPRECATED
+
+    problem_pages = "/home/julowetz/ReporterHome/Data/problem_pages.txt"
+    http_terse = "http://io-web.io.local/report_short.html"
+    http_verbose = "http://io-web.io.local/report.html"
+    http_orig = "http://io-web.io.local/report_orig.html"
+
+    source_report = "/var/www/html/source_%s.html"      # used with printer_name to generate source code change report
+
+    http_source_report = "http://io-web.io.local/source_%s.html"       # use printer name (e.g. 158) as parameter here
+
+    # List of printers to show on the web page; the spellings here must exactly match what the printers send
+    # in the "printer" field of the message. Printers not listed here are ignored. Any number of printers can
+    # be added here.
+    # 2024.06.06 JU: re-ordered the printer list
+    control_list = ['153', '154', '155', '158']
+    platen_image_pages = ['http://10.1.9.11', 'http://10.1.9.4', 'http://10.1.9.14', 'http://10.1.9.7']
+    outfeed_image_pages = ['http://10.1.9.112', 'http://10.1.9.5', 'http://10.1.9.15', 'http://10.1.9.8']    # TODO: temp change for 153 Outfeed IP addr
+    stacker_image_pages = ['http://10.1.9.13', None, 'http://10.1.9.16', 'http://10.1.9.9']     # note: 154 does not have stacker yet, but will someday
+
+    # this list in same order as control_list, with address for CURRENT.jpg image, plus %s to use for inserting value to make each request unique
+    printer_images = ['http://10.1.9.13/CURRENT.jpg?%s',
+                      'http://10.1.9.5/CURRENT.jpg?%s',         # outfeed image because 154 doesn't have a stacker camera
+                      'http://10.1.9.16/CURRENT.jpg?%s',
+                      'http://10.1.9.9/CURRENT.jpg?%s' ]
+
+    # used in logger.py
+    log_file_location = "/home/julowetz/ReporterHome/logfiles/report_logfile.log"
+    logger_name = "ReporterHome"
 
 

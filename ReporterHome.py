@@ -11,6 +11,10 @@
 #               LINKS ARE NOT ALLOWED IN THAT DIRECTORY LIKE I WAS DOING ON RPi's. IT IS A SECURITY RISK TO USE
 #               A LINK IN THIS DIRECTORY, which is why they won't work if I try; links are Forbidden.
 """
+*** Production ***
+Source code location on io-web:  /home/julowetz/ReporterHome/
+Service name:                   ReporterHome.service
+
  To install (one-time event): copy ReporterHome.service to /etc/systemd/system and make sure owned by root
  Then: sudo systemctl enable ReporterHome.service
  Then: sudo systemctl start ReporterHome.service
@@ -26,8 +30,26 @@
 
  >> For TESTING, if the service is stopped, it can be run MANUALLY as:  sudo python3 ReporterHome.py
 
+--------------------------------------------------------------------------------------------
+*** Development ***
+Source code location on io-web: /home/julowetz/ReporterHomeDev/
+Service name:                   ReporterHomeDev.service
 
- Python libraries you may have to load
+To stop:    sudo systemctl stop ReporterHomeDev.service
+To start:   sudo systemctl start ReporterHomeDev.service
+To restart: sudo systemctl restart ReporterHomeDev.service
+
+To test a new version of code:
+    sudo systemctl stop ReporterHomeDev.service
+    cd /home/julowetz/ReporterHomeDev
+    sudo python3 ReporterHome.py
+
+When finished testing:
+    sudo systemctl start ReporterHomeDev.service
+
+----------------------------------------------------------------------------------------------------
+2024.08.27 JU:   added logfiles/startup_logfile.log to track when this program was restarted
+2024.09.20 JU:   added new function create_source_code_page_new2() to webpage.py for new source code status report
 """
 
 import socket
@@ -43,9 +65,10 @@ import webpage
 # import webpage2
 import sys
 import reporter_config as cfg
+import pika
 
+global target  # Reminder: this is on target Linux system
 
-global target     # Reminder: this is on target Linux system
 target = None     # Reminder: this is on target Linux system
 
 BUFFER_SIZE = 2048      # For the moment, assume all messages will fit in one buffer length
@@ -56,10 +79,10 @@ action_event = threading.Event()    # set when any action 'run' thread running
 
 socket_working = False      # set to True when server_bind() successfully runs
 
-print("================================================")
-print(f"Configured to use IP: {cfg.ip}")
-print(f"Configured to use port: {cfg.port}")
-print("================================================")
+print(f"[{cfg.sys_ver}] ================================================")
+print(f"[{cfg.sys_ver}] Configured to use IP: {cfg.ip}")
+print(f"[{cfg.sys_ver}] Configured to use port: {cfg.port}")
+print(f"[{cfg.sys_ver}] ================================================")
 
 
 # -----------------------------------------------------------------------------------------------------------
@@ -153,7 +176,22 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # ########################################
                 trace_it.append(8)
                 ts = datetime.datetime.now()
-                print("%s Saving record: %s" % (ts.strftime("%m-%d %H:%M:%S "), str(input_data_dict)))
+                print(f'[{cfg.sys_ver}] {ts.strftime("%m-%d %H:%M:%S ")} Saving record: {str(input_data_dict)}')
+
+                # TODO temp; remove me
+                if 'release_control' in input_data_dict:
+                    the_type = 'release_control'
+                elif 'database' in input_data_dict:
+                    the_type = 'database'
+                else:
+                    the_type = 'PROCESS'
+
+                #this_file = os.path.join("details", f"Received_{ts.strftime('%m_%d__%H-%M-%S')}_{the_type}.txt")
+                this_file = os.path.join("details",
+                                         f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_00-home_RECEIVE_{the_type}.txt")  # TODO: remove/testing
+                with open(this_file, 'w') as f:
+                    for key, value in input_data_dict.items():
+                        f.write(f"{key}: {value}\n")
 
                 trace_it.append(81)
                 with open(target, 'a') as f:
@@ -162,6 +200,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 if 'release_control' in input_data_dict:
                     pass    # TODO: this is where the Release Control web page is built
                     # Todo:  webpage2.receive(input_data_dict)
+                elif 'database' in input_data_dict:
+                    # 2024.06.20 JU: new feature: mirror database entries on printer into a copy here on the server
+                    pass    # TODO...
                 else:
                     webpage.receive(input_data_dict)    # <<<<<<<<<<< This is where the web page gets updated
                 trace_it.append(83)
@@ -235,30 +276,45 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 class MyTCPServer(socketserver.TCPServer):
     def server_bind(self):
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        print("*** calling socket.bind ***")
+        print(f"[{cfg.sys_ver}] *** calling socket.bind ***")
         try:
             self.socket.bind(self.server_address)
             global socket_working
             socket_working = True
         except OSError:
             socket_working = False
-            print("********************************************************************")
-            print(">>> socket not available; already in use, or wrong ip/port specified")
-            print("********************************************************************")
-            print("Hint: if you specified the IP addr in this file, it might not match the actual IP addr in use")
+            print(f"[{cfg.sys_ver}] ********************************************************************")
+            print(f"[{cfg.sys_ver}] >>> socket not available; already in use, or wrong ip/port specified")
+            print(f"[{cfg.sys_ver}] ********************************************************************")
+            print(f"[{cfg.sys_ver}] Hint: if you specified the IP addr in this file, it might not match the actual IP addr in use")
 
 
 # -----------------------------------------------------------------------------------------------------------
 def launch_tcp_server(host, port):
-    print(">Launching TCPServer: %s / %d" % (host,port))
+    print(f"[{cfg.sys_ver}] >Launching TCPServer: %s / %d" % (host,port))
     with MyTCPServer((host, port), ThreadedTCPRequestHandler) as server:
         if socket_working:
-            print("It is running")
+            print(f"[{cfg.sys_ver}] It is running")
             server.serve_forever()
         else:
-            print("  ")
-            print(">> Server unable to run; socket not available!")
+            print(f"[{cfg.sys_ver}]   ")
+            print(f"[{cfg.sys_ver}] >> Server unable to run; socket not available!")
             time.sleep(3)
+
+
+def write_to_rabbitmq(filename, content):
+    # see if connection is open (or needs to be created)
+    # One reason the connection goes down is when I'm debugging the program and it is stopped in the debugger
+    if cfg.connection is None or not cfg.connection.is_open:
+        log_event('WARNING', 'REPORTER', msg='Opening connection to RabbitMQ')
+        cfg.connection = pika.BlockingConnection(
+            pika.ConnectionParameters(host='localhost'))
+        cfg.channel = cfg.connection.channel()
+        cfg.channel.queue_declare(queue=cfg.queue)
+
+    body = f"{filename}\t{content}"
+    cfg.channel.basic_publish(exchange='', routing_key=cfg.queue, body=body)
+    print(f" [x] Wrote file: {filename}")
 
 
 # -----------------------------------------------------------------------------------------------------------
@@ -269,7 +325,12 @@ if __name__ == "__main__":
     msg = '============= ReporterHome.py startup ==============================='
     log_event('INFO', 'REPORTER', msg=msg, argv=str(sys.argv))
     log_event('INFO', 'LOGGING', msg='Log file location', location=cfg.log_file_location)
-    print(msg)
+    print(f"[{cfg.sys_ver}] {msg}")
+
+    Path("logfiles").mkdir(parents=True, exist_ok=True)
+    # with open("logfiles/startup_logfile.log", "a") as f:
+    #     ts = datetime.datetime.now()
+    #     f.write(f"{ts.strftime('%Y-%m-%d %H:%M:%S ')} ReporterHome startup\n")
 
     # optional arguments:
     #       ReporterHome.py IP PORT ReportFilename
@@ -293,17 +354,23 @@ if __name__ == "__main__":
     target = os.path.join(target_base, raw_target)
     log_event('INFO', 'REPORTER', target_base=target_base)
 
+
     # Make sure the target directory exists to write the file to
     head, _ = os.path.split(target)
     Path(head).mkdir(parents=True, exist_ok=True)
 
     # load previous reports to web page so it shows the most recent into at startup
-    webpage.catchup(target)
+    line_count = webpage.catchup(target)
+    # 2024.08.27 JU
+    Path("logfiles").mkdir(parents=True, exist_ok=True)
+    # with open("logfiles/startup_logfile.log", "a") as f:
+    #     ts = datetime.datetime.now()
+    #     f.write(f"{ts.strftime('%Y-%m-%d %H:%M:%S ')} reload last 300 lines out of {line_count}\n")
 
     while True:
         launch_tcp_server(my_ip, my_port)      # this will run forever, unless the socket is not available
-        print("Failed to start tcp server")
+        print(f"[{cfg.sys_ver}] Failed to start tcp server")
         time.sleep(5)
-        print("-----")
-        print("Retrying to launch_tcp_server...")
+        print(f"[{cfg.sys_ver}] -----")
+        print(f"[{cfg.sys_ver}] Retrying to launch_tcp_server...")
 

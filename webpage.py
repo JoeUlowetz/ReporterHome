@@ -8,7 +8,9 @@ import time
 from logger import set_logger, log_event
 import os
 import reporter_config as cfg
-from copy import deepcopy
+# from copy import deepcopy
+
+from ReporterHome import write_to_rabbitmq
 
 """
 2023.08.22 Changed style section to dark mode, per suggestion from Thor
@@ -75,10 +77,10 @@ Other types w/o 'state':
 
 """
 
-web_target = cfg.web_target                     # "/var/www/html/report.html"
-web_target_short = cfg.web_target_short        # "/var/www/html/report_short.html"
+# web_target = cfg.web_target                     # "/var/www/html/report.html"
+# web_target_short = cfg.web_target_short        # "/var/www/html/report_short.html"
 # test_web_target = cfg.test_web_target           # "/home/julowetz/ReporterHome/Data/test.html"
-detail_target_base = cfg.detail_target_base     # "/home/julowetz/ReporterHome/details"     DEPRECATED
+# detail_target_base = cfg.detail_target_base     # "/home/julowetz/ReporterHome/details"     DEPRECATED
 problem_pages = cfg.problem_pages               # "/home/julowetz/ReporterHome/Data/problem_pages.txt"
 control_list = cfg.control_list                 # ['154', '158', '153']        # <<< Edit this list to change which printers appear on the web page <<<===========
 
@@ -114,6 +116,7 @@ stacker_camera_throttled = [''] * control_list_length
 
 # 2024.02.08 JU: buffer used to receive source code report, comes in parts because of size
 source_code_report = [''] * control_list_length
+source_code_report2 = [''] * control_list_length
 # after a source_code_report is received, this saves the beginning of that data, so it can be tested for the CHANGED flag
 current_source_code_report_header = [''] * control_list_length
 
@@ -282,6 +285,18 @@ table_1_end = "</table>\n"
 
 section_footer = '</div></br>\n'
 
+# <th><img src="http://10.1.9.16/CURRENT.jpg??80172489074"" height="300" alt=""/>
+# <th><img src="file://10.1.9.1/share/ImpossibleObjects/camera/CURRENT.jpg"" height="300" alt=""/>
+
+# 2024.12.06 JU
+printer_image = """
+<div class="progress center column3"><table border="1" style='border: 1px solid black; border-radius: 10px;'>
+            <tr>
+            <th><a href="%s" target="_blank"><img src="%s" " height="300" alt=""/></a>
+            </tr>
+</table></div>
+"""
+
 # 2023.10.27 JU: add additional parameter to show throttled status, if any
 # *SECTION, PART-4*  wrap w/ <table>...</table>
 platen_str_0 = """<tr><td>Platen Camera:%s</td><td class="%s">%s</td></tr>\n"""
@@ -391,7 +406,7 @@ def count_pause_reasons(report_dict):
     Look at the current date to see when to roll counts over from today to previous day.
     :param report_dict:
         report_dict['pause_reason']  count occurrances of each type
-        report_dict['printer']      this will be 153, 154, 158, etc; identify the printer it is for
+        report_dict['printer']      this will be 153, 154, 158, etc.; identify the printer it is for
 
     :return:    True if something changed, False if no change
     """
@@ -405,7 +420,7 @@ def count_pause_reasons(report_dict):
 
     index = control_list.index(printer_name)
     if index > control_list_length:
-        print("BUG in count_pause_reason")
+        print(f"[{cfg.sys_ver}] BUG in count_pause_reason")
         return
 
     if today_pause_lists[index] is None:
@@ -464,19 +479,19 @@ def display_status(prt, output):
     day_list = status_list[prt]     # could be empty
     if day_list is not None:
         cnt = len(day_list)
-        print(f"JOE number of history entries: {cnt}")
+        print(f"[{cfg.sys_ver}] JOE number of history entries: {cnt}")
         for day_item in day_list:
             # first field is the date; it might be in yyyy-mm-dd format, or Weekday mm/dd format
             if type(day_item) is not list:
-                print("---not a list--")
+                print(f"[{cfg.sys_ver}] ---not a list--")
                 continue
             if len(day_item) < 7:
-                print("---too few items--")
+                print(f"[{cfg.sys_ver}] ---too few items--")
                 continue
 
             the_date = day_item[0]
             if len(the_date) < 2:
-                print("---invalid date--")
+                print(f"[{cfg.sys_ver}] ---invalid date--")
                 continue
 
             # print(f"*** day_item: {day_item}")
@@ -529,28 +544,62 @@ def display_status(prt, output):
     output.append('</table></div>')   # end of this table
 
 
+def database_cmd(report_dict: dict):
+    """
+    Save data in database; no web page activity done.
+
+    [[maybe use preset formats for updating different tables???]]
+
+    :param report_dict:
+            'database': True,
+            'printer': name of printer,
+            'table': table,
+            'row': data to save in database, passed as a string; use literal_eval() to revert to dict
+            'action': 'insert' to insert the (new) row in the table, 'update' [?] to update existing row
+            'where': this is the where clause used with the update action [?]
+            'timestamp': round( time.time(), 3),
+            'datetime': datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+
+    :return:    none
+    """
+    pass
+
+
 def receive(report_dict):
     # every report entry has 'printer' or 'printer_name' in it
     # find 'index' for which printer this info is for:
     # 0 = #154
     # 1 = #158
     # 2 = ignore this
-    start_time = time.time()
-    print("--receive--")
+    # start_time = time.time()
+    print(f"[{cfg.sys_ver}] --receive--")
     # details = []
     # details.append("%s : receive ----------" % timestamper())
     # log_page_problems(report_dict)    # obsolete
+
+    ts = datetime.datetime.now()    # TODO: remove/testing
+    debug_path = '/home/julowetz/ReporterHomeDev/details'
+    this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_10-RECEIVE_start.txt")  # TODO: remove/testing
+    with open(this_file, 'w') as f:
+        for key, value in report_dict.items():
+            f.write(f"{key}: {value}\n")
+
+    if 'database' in report_dict and 'table' in report_dict:
+        # this is the new command to send data to the database
+        database_cmd(report_dict)
+        return
+
     refresh_pause_page = count_pause_reasons(report_dict)
 
-    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    print(report_dict)
+    print(f"[{cfg.sys_ver}] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    print(f"[{cfg.sys_ver}] {str(report_dict)}")
 
     # 2022.05.20 JU: fixed so either format of printer name will work
     # 2023.03.07 JU: changed again so driven by control_list variable defined at head of this file
     printer_name = report_dict['printer']
 
     if printer_name not in control_list:
-        print(f"!!! Received printer name not in control_list:  {printer_name}")
+        print(f"[{cfg.sys_ver}] !!! Received printer name not in control_list:  {printer_name}")
         log_event("ERROR", "REPORTER", msg="Received printer name not in control_list", printer_name=printer_name, control_list=control_list)
         return
 
@@ -565,8 +614,51 @@ def receive(report_dict):
     if 'SOURCE_REPORT_TEXT' in report_dict:
         content = report_dict['SOURCE_REPORT_TEXT']
         source_code_report[prt] += content
-
         create_source_code_page_new(printer_name, prt)      # this clears source_code_report[prt] when done
+        return
+
+
+    # 2024.09.19 JU: NEW version of the status report, more fields, different format
+    if 'SOURCE_REPORT2_PART' in report_dict:
+        content = report_dict['SOURCE_REPORT2_PART']
+
+        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_A-content_part.txt")     # TODO: remove/testing
+        with open(this_file, 'w') as f:
+            f.write(content)
+
+        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_B-source_code_report2_before_adding_content.txt")    # TODO: remove/testing
+        with open(this_file, 'w') as f:
+            f.write(source_code_report2[prt])
+
+
+        source_code_report2[prt] += content
+
+        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_C-source_code_report2_after_adding_content.txt")     # TODO: remove/testing
+        with open(this_file, 'w') as f:
+            f.write(source_code_report2[prt])
+
+        return  # wait until entire contents received before doing anything else
+    if 'SOURCE_REPORT2_END' in report_dict:
+        content = report_dict['SOURCE_REPORT2_END']
+
+        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_X-content_final.txt")     # TODO: remove/testing
+        with open(this_file, 'w') as f:
+            f.write(content)
+
+        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_Y-source_code_report2_before_adding_final_content.txt")    # TODO: remove/testing
+        with open(this_file, 'w') as f:
+            f.write(source_code_report2[prt])
+
+        source_code_report2[prt] += content
+
+
+        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_Z-source_code_report2_after_adding_final_content.txt")     # TODO: remove/testing
+        with open(this_file, 'w') as f:
+            f.write(source_code_report2[prt])
+
+        print(f"[{cfg.sys_ver}] <<<<<<<<<<<<< creating NEW report  !!!!!!!!!!!!!!!!!!!!>>>>>>>>>>>")
+        create_source_code_page_new2(printer_name, prt)      # this clears source_code_report2[prt] when done
+        return
 
 
     # details.append("Printer index = %d" % prt)
@@ -670,14 +762,14 @@ def receive(report_dict):
 
     # 2023.03.10 JU: report printer daily activity numbers
     if report_dict.get('today_stats') is not None:        # Today: this will probably be sent out once a minute     2023.06.21 JU: changed to use get
-        print(f"JOE  today_stats found")
+        print(f"[{cfg.sys_ver}]  today_stats found")
         today_stats = report_dict['today_stats']        # example:   '12%,45,10:10,14:42'
-        print(f"JOE  today_stats contents: {today_stats}")
+        print(f"[{cfg.sys_ver}] today_stats contents: {today_stats}")
         tup = today_stats.split(',')        # [0] = 'Today so far', [1] = active%, [2] = pages, [3] = start_time, [4] = end_time, [5] = restarts, [6] = unattended
         if tup is not None and len(tup) == 7:
             today_list[prt] = tup
         else:
-            print(f"JOE  did not save to today_list:  {tup}")
+            print(f"[{cfg.sys_ver}] did not save to today_list:  {tup}")
         filename = "Data/today_stats_%d" % prt
         with open(filename, 'w') as f:       # save raw data to file in case web server restarts
             f.write(today_stats)
@@ -763,16 +855,25 @@ def receive(report_dict):
     """
 
     # Rebuild the entire page, for all printers
-    # details.append("--> Generating HTML")
-    output = []
-    output.append(header)
-    output.append(date_header % datetime.datetime.now().strftime("%Y-%m-%d -- %H:%M:%S"))
-    output.append(class_wrap)
 
-    short_output = []
-    short_output.append(header)
-    short_output.append(date_header % datetime.datetime.now().strftime("%Y-%m-%d -- %H:%M:%S"))
-    short_output.append(class_wrap)
+    # 'normal' page, now includes camera images
+    norm_output = [header,
+              date_header % datetime.datetime.now().strftime("%Y-%m-%d -- %H:%M:%S"),
+              class_wrap
+              ]
+
+    # terse page, no daily stats
+    short_output = [header,
+                    date_header % datetime.datetime.now().strftime("%Y-%m-%d -- %H:%M:%S"),
+                    class_wrap
+                    ]
+
+    # original page, no images
+    orig_output = [header,
+                   date_header % datetime.datetime.now().strftime("%Y-%m-%d -- %H:%M:%S"),
+                   class_wrap
+                   ]
+
 
     for i, printer in enumerate(control_list):
         #for i in range(2):
@@ -786,13 +887,19 @@ def receive(report_dict):
         http_page = cfg.http_source_report % printer    # 2024.02.08 JU: add link to source code report
 
         # change the tag text and color if the change report starts w/ the word "CHANGED"
-        if current_source_code_report_header[i].startswith('CHANGED'):
+        #if current_source_code_report_header[i].startswith('CHANGED'):
+        msg1 = current_source_code_report_header[i]
+        if msg1.find('CHANGED') >= 0:
+            #print(f'[{cfg.sys_ver}] CHANGED FOUND ~~~~~~~~~~~~~~~~~~, msg = {msg1}')
+            #print(f'[DEBUG] CHANGED FOUND ~~~~~~~~~~~~~~~~~~, msg = {msg1}')
             tup = current_source_code_report_header[i].split(' ')
             msg = tup[0]
             # section_output.append(status_tag_changed % (http_page, color[i], state[i], timestamp[i]))   # changed
             section_output.append(status_tag_changed % (http_page, msg, color[i], state[i], timestamp[i]))   # changed
         else:
             section_output.append(status_tag % (http_page, color[i], state[i], timestamp[i]))       # not changed
+            #print(f'[{cfg.sys_ver}] CHANGED *NOT* FOUND ~~~~~~~~~~~~~~~~~~, msg = {msg1}')
+            #print(f'[DEBUG] CHANGED *NOT* FOUND ~~~~~~~~~~~~~~~~~~, msg = {msg1}')
 
         if state[i] == 'Paused' and pause_reason[i] is not None:
             section_output.append(p_reason % pause_reason[i])
@@ -844,97 +951,93 @@ def receive(report_dict):
         status_output = []
         display_status(i, status_output)       # reads content from status_list[], today_list[]
 
-        output += section_output
-        output += status_output
-        output.append('</section>')
 
-        # build copy without status_output
+        norm_output += section_output
+        orig_output += section_output
         short_output += section_output
+
+        norm_output += status_output
+        orig_output += status_output
         short_output.append('</section>')
 
+        # image for printer; ONLY USE FOR ONE OF THE PAGES GENERATED
+        now = datetime.datetime.now()
+        milli_str = now.strftime("%f")
+        image_name = cfg.printer_images[i] % milli_str
+        just_name = cfg.printer_images[i][0:-3]
+        norm_output.append(printer_image % (just_name, image_name))
+        norm_output.append('</section>')
 
-    # add link at the bottom of the page to switch between formats
+        # build copy without images
+        orig_output.append('</section>')
+
+        print(f'[DEBUG] Page built: {norm_output}')
+
+
+    # add linkS at the bottom of the page to switch between formats
     to_terse = f'<p>Terse version of report <a href="{cfg.http_terse}">TERSE</a>.</p>'
     to_verbose = f'<p>Verbose version of report <a href="{cfg.http_verbose}">VERBOSE</a>.</p>'
+    to_orig = f'<p>Original version of report <a href="{cfg.http_orig}">VERBOSE</a>.</p>'
 
-    # duration = time.time() - start_time
-    # output.append(final_footer % duration)
-    output.append(to_terse)
-    output.append(final_footer)
+    # Normal page, show links to Orig, terse
+    norm_output.append(to_terse)
+    norm_output.append(to_orig)
+
+    # Terse page, show links to Normal, Orig
     short_output.append(to_verbose)
+    short_output.append(to_orig)
+
+    # Orig page, show links to Normal, terse
+    orig_output.append(to_verbose)
+    orig_output.append(to_terse)
+
+    # Final footer for all pages
+    norm_output.append(final_footer)
     short_output.append(final_footer)
+    orig_output.append(final_footer)
 
-    total = ''.join(output)
-    f = open(web_target, 'w')
-    f.write(total)                      # <<<< Write updated web page (full) here
-    f.close()
 
+    # convert lists into strings
+    total = ''.join(norm_output)
     short_total = ''.join(short_output)
-    f = open(web_target_short, 'w')
-    f.write(short_total)                # <<<< Write updated web page (terse) here
-    f.close()
+    orig_total = ''.join(orig_output)
+
+
+    # save strings for web display
+    if cfg.use_rabbitmq:
+        write_to_rabbitmq(cfg.base_web_target, total)
+        with open(os.path.join('Data', cfg.base_web_target), 'w') as file:  # make a local copy of the file
+            file.write(total)
+
+        write_to_rabbitmq(cfg.base_web_target_short, short_total)
+        with open(os.path.join('Data', cfg.base_web_target_short), 'w') as file:  # make a local copy of the file
+            file.write(short_total)
+
+        write_to_rabbitmq(cfg.base_web_target_orig, orig_total)
+        with open(os.path.join('Data', cfg.base_web_target_orig), 'w') as file:  # make a local copy of the file
+            file.write(orig_total)
+
+    else:
+        f = open(cfg.web_target, 'w')
+        f.write(total)                      # <<<< Write updated web page (full) here
+        f.close()
+
+        f = open(cfg.web_target_short, 'w')
+        f.write(short_total)                # <<<< Write updated web page (terse) here
+        f.close()
+
+        f = open(cfg.web_target_orig, 'w')
+        f.write(orig_total)                # <<<< Write updated web page (original (no image)) here
+        f.close()
+
 
     if refresh_pause_page:
         pass    # TODO: update web page showing pause reasons
 
-        # temp code  DOESN'T WORK FOR SOME REASON:
-        """
-        
-        ----------------------------------------
-        Exception happened during processing of request from ('10.1.10.110', 59982)
-        Traceback (most recent call last):
-          File "/usr/lib64/python3.6/socketserver.py", line 320, in _handle_request_noblock
-            self.process_request(request, client_address)
-          File "/usr/lib64/python3.6/socketserver.py", line 351, in process_request
-            self.finish_request(request, client_address)
-          File "/usr/lib64/python3.6/socketserver.py", line 364, in finish_request
-            self.RequestHandlerClass(request, client_address, self)
-          File "/usr/lib64/python3.6/socketserver.py", line 724, in __init__
-            self.handle()
-          File "ReporterHome.py", line 157, in handle
-            webpage.receive(input_data_dict)    # <<<<<<<<<<< This is where OLD web page gets updated
-          File "/home/julowetz/ReporterHomeDev/webpage.py", line 793, in receive
-            for key, value in today_pause_lists[index]:
-        ValueError: too many values to unpack (expected 2)
-        ----------------------------------------
-
-
-
-        with open('pause_reasons.txt', 'w') as f:
-            for index in range(control_list_length):
-                printer = control_list[index]
-                f.write(f"\nPrinter #{printer}\n")
-                if today_pause_lists[index] is not None:
-                    if type(today_pause_lists[index]) is dict:
-                        for key, value in today_pause_lists[index]:
-                            f.write('%-10s  %d' % (key, value))
-                    else:
-                        f.write('Type of list: %s' % str(type(today_pause_lists[index])))
-                else:
-                    f.write('No entries for this printer')
-        """
-
-"""
-# ==============================================================================================
-def create_source_code_page(printer_name, prt):     # OLD VERSION; REPLACED W/ FOLLOWING FUNCTION
-    tup = source_code_report[prt].split('\n')
-    lines = [f"<title>{printer_name} source report</title><head></head><body>", ]
-    for line in tup:
-        lines.append(f"{line}<br>")
-    lines.append("</body>")
-
-    formatted_lines = "\n".join(lines)
-    filename = f"/var/www/html/source_{printer_name}.html"
-    with open(filename, 'w') as f:
-        f.write(formatted_lines)
-
-
-    source_code_report[prt] = ''        # clear for next time
-"""
-
 
 # ==============================================================================================
 def create_source_code_page_new(printer_name, prt):
+    # This is the OLD format for the source code change report:
     # Section 1: Source code difference report for printer...
     # Section 2: Changed Individual files
     # Section 3: Current Firmware versions
@@ -1015,12 +1118,127 @@ def create_source_code_page_new(printer_name, prt):
 
 
     formatted_lines = "\n".join(lines)
-    filename = f"/var/www/html/source_{printer_name}.html"
-    with open(filename, 'w') as f:
-        f.write(formatted_lines)
+
+    # 2024.09.25 JU: write the output RabbitMQ, and let the webpub service write it to the /var/www/html directory
+    #  This way, ReporterHome doesn't need to run as root.
+
+
+    if cfg.use_rabbitmq:
+        write_to_rabbitmq(f"source_{printer_name}", formatted_lines)
+    else:
+        # #filename = f"/var/www/html/source_{printer_name}.html"
+        filename = cfg.source_report % printer_name
+        with open(filename, 'w') as f:
+            f.write(formatted_lines)
 
     current_source_code_report_header[prt] = source_code_report[prt][0:20]      # save start of this file
     source_code_report[prt] = ''        # clear for next time
+
+
+# ==============================================================================================
+def create_source_code_page_new2(printer_name, prt):
+    """
+    New format for changed report.
+    Control line format:
+        <tag> \t p \t content_to_display_with_<p>
+        <tag> \t h2 \t content_to_display_surrounded_by_<h2>_</h2>
+        <tag> \t table      following lines displayed in a table; table lines continue until next <tag>
+        Lines in table have fields separated by tab
+    """
+    in_table = False
+    class_section = 0       # used to provide unique section name for table class
+
+    tup = source_code_report2[prt].split('\n')
+    assert status_header1 is not None
+    assert printer_name is not None
+    assert status_header2 is not None
+    lines = [status_header1, printer_name, status_header2]      # html output built here
+    #if source_code_report2[prt].startswith('<tag>\th2\tCHANGED'):
+    if tup[0].find('CHANGED') >= 0:
+        lines.append("<p>CHANGED1 means printer code in SWZP or its Python libraries has changed")
+        lines.append("<p>CHANGED2 means the firmware compile date(s) have changed")
+        lines.append("<p>CHANGED3 means the camera code in one or more Raspberry Pi's have changed")
+        lines.append("<p>If more than one section changed, the numbers will concantinate, ex. CHANGED123")
+
+    for line in tup:
+        parts = line.split('\t')  # split line by tabs, for use later
+        if in_table:
+            # see if end of table
+            if line.startswith('<tag>'):
+                in_table = False
+                lines.append("</table>")
+                # let the remaining code handle this new line below
+
+            else:
+                # this is a line for the table; use the line split up by tabs and place in table
+                one_line = ["<tr>"]
+                for part in parts:
+                    one_line.append(f"<td>{part}</td>")
+                one_line.append(f"</tr>")
+                join1 = "".join(one_line)
+                assert join1 is not None
+                lines.append(join1)
+                continue
+
+        # line really should start with '<tag>\t'; see which command it is
+        if line.startswith('<tag>\ttable'):
+            in_table = True
+            class_section += 1
+            lines.append(f'<table class="section-{class_section}">')
+            continue
+        if line.startswith('<tag>\th2'):
+            # this is a header line; there should only be 1 section after the 'h2\t' part
+            msg = str(parts[2:])
+            if msg.startswith("['"):
+                msg = msg[2:]
+            if msg.endswith("']"):
+                msg = msg[:-2]
+            # print(f'[{cfg.sys_ver}] Header2 content: {msg}  ===================== Line:  {parts}')
+            lines.append(f"<h2>{msg}</h2>")     # clean up extra characters around header info (why?)
+            continue
+        # todo: add support for other headers here?
+
+        if line.startswith('<tag>\tp'):
+            lines.append(f"<p>{parts[2:]}</p>")
+            continue
+
+        # not sure how to handle this
+        lines.append(lines.append(f"<p>Problem: {line}</p>"))
+
+    """
+    Idea: to avoid needing to have root privileges, I could write this to a queue and have another server
+    running under root that reads from the queue and writes to the html directory. This way the web page
+    logic could run under my (or someone's) personal account; it would help with debugging.
+    """
+
+    for ck in lines:
+        if ck is None:
+            print("Found problem line")
+
+    formatted_lines = "\n".join(lines)
+
+    if cfg.use_rabbitmq:
+        write_to_rabbitmq(f"source_{printer_name}.html", formatted_lines)
+    else:
+        # filename = f"/var/www/html/source_{printer_name}.html"
+        filename = cfg.source_report % printer_name
+        with open(filename, 'w') as f:
+            f.write(formatted_lines)
+
+    # TODO: remove/testing
+    debug_path = '/home/julowetz/ReporterHomeDev/debug2'
+    ts = datetime.datetime.now()
+    this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_source_{printer_name}.txt")
+    with open(this_file, 'w') as f:
+        f.write(formatted_lines)
+
+
+    temp = source_code_report2[prt][0:20]      # save start of this file
+    if temp.startswith('<tag'):
+        current_source_code_report_header[prt] = temp.split('\t')[2]    # line starts with
+    else:
+        current_source_code_report_header[prt] = temp
+    source_code_report2[prt] = ''        # clear for next time
 
 
 # ==============================================================================================
@@ -1032,14 +1250,14 @@ def catchup(filename):
     for i in range(control_list_length):
         filename1 = "Data/today_stats_%d" % i
         if os.path.isfile(filename1):
-            print(f"FOUND FILE: {filename1}")
+            print(f"[{cfg.sys_ver}] FOUND FILE: {filename1}")
             with open(filename1) as f:
                 today_stats = f.read()      # todo: check to see if needs strip()
                 today_list[i] = today_stats.split(',')
 
         filename2 = "Data/hist_stats_%d" % i
         if os.path.isfile(filename2):
-            print(f"FOUND FILE: {filename2}")
+            print(f"[{cfg.sys_ver}] FOUND FILE: {filename2}")
             with open(filename2) as f:
                 hist_stats = f.read()
                 tup_days = hist_stats.split('|')  # day entries separated by '|'
@@ -1050,11 +1268,12 @@ def catchup(filename):
                 status_list[i] = prt_list
 
     # count number of lines in the source data; only care about last few records
+    line_count = 0
     try:
         with open(filename, 'r') as fp:
             line_count = len(fp.readlines())
 
-        print("Loading recent reports to web page...")
+        print("[{cfg.sys_ver}] Loading recent reports to web page...")
         g = open(filename, 'r')
         count = 0
         skip_lines = line_count - 300       # skip all but the last 300 lines TODO: adjust this?
@@ -1065,10 +1284,11 @@ def catchup(filename):
             res = ast.literal_eval(line)
             receive(res)
         g.close()
-        print("Web page now current")
+        print("[{cfg.sys_ver}] Web page now current")
     except:
-        print(f"No {filename}, run anyway")
+        print(f"[{cfg.sys_ver}] No {filename}, run anyway")
 
+    return line_count
 
 def set_camera_color(status):
     # Working, Disabled, Partial, Not active, Not configured
@@ -1086,7 +1306,7 @@ def set_camera_color(status):
         "Camera Started"            x # camera initially connected to printer, but printer has not taken any images yet
     """
 
-    # Reminder: all these color strings must be declared in header html (case insensitive)
+    # Reminder: all these color strings must be declared in header html (case-insensitive)
     if 'OVRD' in status:
         return 'Red'
     if 'Disabled' in status or 'Not Working' in status:      # check this before checking 'Working' below
@@ -1116,13 +1336,3 @@ if __name__ == '__main__':
     set_logger()  # calls to log_event allowed **AFTER** this point
     testfile = "C:/Users/Joe/PycharmProjects/ReporterHome/medium.txt"
     catchup(testfile)
-    # g = open(testfile, 'r')
-    # i = 0
-    # for line in g:
-    #     i += 1
-    #     res = ast.literal_eval(line)
-    #     receive(res)
-    #     print(res)
-    #     if i % 50 == 0:
-    #         time.sleep(3)
-    # g.close()

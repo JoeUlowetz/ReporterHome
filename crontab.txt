@@ -1,1 +1,1 @@
-00 01 * * * /home/julowetz/ReporterHome/daily_cleanup.sh
+00 01 * * * /home/julowetz/ReporterHome/daily_cleanup.sh    >/home/julowetz/ReporterHome/daily_cleanup.log

@@ -31,7 +31,7 @@ def set_logger():
 
     # log_file_location =  '/home/julowetz/ReporterHome/logfiles/report_logfile.log'    # 2022.05.13 JU unique file for this
     path, base = os.path.split(cfg.log_file_location)
-    print(f"*** Log file location: {cfg.log_file_location}")
+    print(f"[{cfg.sys_ver}] *** Log file location: {cfg.log_file_location}")
     if path:
         if not os.path.exists(path):
             os.makedirs(path)
@@ -95,8 +95,9 @@ def log_event(level, tag: str, **kwargs) -> None:
         try:
             msg += f' {json.dumps(use_kwargs)}'
         except TypeError as e:
-            print("Error: trying to pass a network argument that is not JSON serializable:")
-            print(use_kwargs)
+            print(f"[{cfg.sys_ver}] Error: trying to pass a network argument that is not JSON serializable:")
+            print(f"[{cfg.sys_ver}] {str(use_kwargs)}")
+
             caller = inspect.currentframe().f_back.f_code.co_name
             logging.critical(f'log_message (called from {caller}): - json TypeError - {e}')
 
@@ -148,11 +149,12 @@ def log_name_to_level(level):
         rv = level
     elif str(level) == level:
         if level not in LOG_NAME_TO_LEVEL:
-            print(f'Unknown logging level sent to log_message ({level})')
+            print(f'[{cfg.sys_ver}] Unknown logging level sent to log_message ({level})')
             logging.error(f'Unknown logging level sent to log_message ({level})')
             return
         rv = LOG_NAME_TO_LEVEL[level]
-
+    else:
+        rv = "666"
     return rv
 
     # 2021.07.22 Joe Ulowetz: it looks like there is a bug here; if something other than an int or string is passed
