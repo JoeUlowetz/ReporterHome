@@ -187,11 +187,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     the_type = 'PROCESS'
 
                 #this_file = os.path.join("details", f"Received_{ts.strftime('%m_%d__%H-%M-%S')}_{the_type}.txt")
-                this_file = os.path.join("details",
-                                         f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_00-home_RECEIVE_{the_type}.txt")  # TODO: remove/testing
-                with open(this_file, 'w') as f:
-                    for key, value in input_data_dict.items():
-                        f.write(f"{key}: {value}\n")
+                # this_file = os.path.join("details",
+                #                          f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_00-home_RECEIVE_{the_type}.txt")  # TODO: remove/testing
+                # with open(this_file, 'w') as f:
+                #     for key, value in input_data_dict.items():
+                #         f.write(f"{key}: {value}\n")
 
                 trace_it.append(81)
                 with open(target, 'a') as f:

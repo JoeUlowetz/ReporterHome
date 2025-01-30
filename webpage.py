@@ -289,10 +289,13 @@ section_footer = '</div></br>\n'
 # <th><img src="file://10.1.9.1/share/ImpossibleObjects/camera/CURRENT.jpg"" height="300" alt=""/>
 
 # 2024.12.06 JU
+# See this for why we should use rel="noopener noreferrer" when using target="_blank":
+#       https://www.freecodecamp.org/news/how-to-use-html-to-open-link-in-new-tab/
+# Note: modern browsers already protect against this problem, so it only affects someone w/ an old browser
 printer_image = """
 <div class="progress center column3"><table border="1" style='border: 1px solid black; border-radius: 10px;'>
             <tr>
-            <th><a href="%s" target="_blank"><img src="%s" " height="300" alt=""/></a>
+            <th><a href="%s" target="_blank" rel="noopener noreferrer"><img src="%s" " height="300" alt=""/></a>
             </tr>
 </table></div>
 """
@@ -577,15 +580,16 @@ def receive(report_dict):
     # details.append("%s : receive ----------" % timestamper())
     # log_page_problems(report_dict)    # obsolete
 
-    ts = datetime.datetime.now()    # TODO: remove/testing
-    debug_path = '/home/julowetz/ReporterHomeDev/details'
-    this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_10-RECEIVE_start.txt")  # TODO: remove/testing
-    with open(this_file, 'w') as f:
-        for key, value in report_dict.items():
-            f.write(f"{key}: {value}\n")
+    # ts = datetime.datetime.now()    # TODO: remove/testing
+    # debug_path = '/home/julowetz/ReporterHomeDev/details'
+    # this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_10-RECEIVE_start.txt")  # TODO: remove/testing
+    # with open(this_file, 'w') as f:
+    #     for key, value in report_dict.items():
+    #         f.write(f"{key}: {value}\n")
 
-    if 'database' in report_dict and 'table' in report_dict:
-        # this is the new command to send data to the database
+    # if 'database' in report_dict and 'table' in report_dict:
+    if report_dict.get('database', False):
+        # this is the new command to send data to the database; no web page update from this
         database_cmd(report_dict)
         return
 
@@ -964,8 +968,8 @@ def receive(report_dict):
         now = datetime.datetime.now()
         milli_str = now.strftime("%f")
         image_name = cfg.printer_images[i] % milli_str
-        just_name = cfg.printer_images[i][0:-3]
-        norm_output.append(printer_image % (just_name, image_name))
+        #just_name = cfg.printer_images[i][0:-3]        # THIS DOES NOT REFRESH IMAGE IN BROWSER SOMETIMES!
+        norm_output.append(printer_image % (image_name, image_name))
         norm_output.append('</section>')
 
         # build copy without images
@@ -1226,11 +1230,11 @@ def create_source_code_page_new2(printer_name, prt):
             f.write(formatted_lines)
 
     # TODO: remove/testing
-    debug_path = '/home/julowetz/ReporterHomeDev/debug2'
-    ts = datetime.datetime.now()
-    this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_source_{printer_name}.txt")
-    with open(this_file, 'w') as f:
-        f.write(formatted_lines)
+    #debug_path = '/home/julowetz/ReporterHomeDev/debug2'
+    #ts = datetime.datetime.now()
+    #this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_source_{printer_name}.txt")
+    #with open(this_file, 'w') as f:
+    #    f.write(formatted_lines)
 
 
     temp = source_code_report2[prt][0:20]      # save start of this file

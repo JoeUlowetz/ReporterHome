@@ -101,7 +101,7 @@ if 'ReporterHomeDev' in cwd:
     control_list = ['JoeWork', '153', '154', '155', '158']
     platen_image_pages = ['http://10.1.9.1', 'http://10.1.9.11', 'http://10.1.9.4', 'http://10.1.9.14', 'http://10.1.9.7']
     outfeed_image_pages = ['http://10.1.9.2', 'http://10.1.9.112', 'http://10.1.9.5', 'http://10.1.9.15', 'http://10.1.9.8']    # TODO: temp change for 153 Outfeed IP addr
-    stacker_image_pages = ['http://10.1.9.3', 'http://10.1.9.13', None, 'http://10.1.9.16', 'http://10.1.9.9']     # note: 154 does not have stacker yet, but will someday
+    stacker_image_pages = ['http://10.1.9.3', 'http://10.1.9.13', 'http://10.1.9.6', 'http://10.1.9.16', 'http://10.1.9.9']     # note: 154 does not have stacker yet, but will someday
 
     # this list in same order as control_list, with address for CURRENT.jpg image, plus %s to use for inserting value to make each request unique
     printer_images = ['http://10.1.9.3/CURRENT.jpg?%s',
@@ -163,7 +163,7 @@ else:    # ---------------------------------------------------------------------
     control_list = ['153', '154', '155', '158']
     platen_image_pages = ['http://10.1.9.11', 'http://10.1.9.4', 'http://10.1.9.14', 'http://10.1.9.7']
     outfeed_image_pages = ['http://10.1.9.112', 'http://10.1.9.5', 'http://10.1.9.15', 'http://10.1.9.8']    # TODO: temp change for 153 Outfeed IP addr
-    stacker_image_pages = ['http://10.1.9.13', None, 'http://10.1.9.16', 'http://10.1.9.9']     # note: 154 does not have stacker yet, but will someday
+    stacker_image_pages = ['http://10.1.9.13', 'http://10.1.9.6', 'http://10.1.9.16', 'http://10.1.9.9']     # note: 154 does not have stacker yet, but will someday
 
     # this list in same order as control_list, with address for CURRENT.jpg image, plus %s to use for inserting value to make each request unique
     printer_images = ['http://10.1.9.13/CURRENT.jpg?%s',
