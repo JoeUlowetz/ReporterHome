@@ -626,39 +626,39 @@ def receive(report_dict):
     if 'SOURCE_REPORT2_PART' in report_dict:
         content = report_dict['SOURCE_REPORT2_PART']
 
-        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_A-content_part.txt")     # TODO: remove/testing
-        with open(this_file, 'w') as f:
-            f.write(content)
-
-        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_B-source_code_report2_before_adding_content.txt")    # TODO: remove/testing
-        with open(this_file, 'w') as f:
-            f.write(source_code_report2[prt])
+        #this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_A-content_part.txt")     # TODO: remove/testing
+        #with open(this_file, 'w') as f:
+        #    f.write(content)
+        #
+        # this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_B-source_code_report2_before_adding_content.txt")    # TODO: remove/testing
+        # with open(this_file, 'w') as f:
+        #     f.write(source_code_report2[prt])
 
 
         source_code_report2[prt] += content
 
-        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_C-source_code_report2_after_adding_content.txt")     # TODO: remove/testing
-        with open(this_file, 'w') as f:
-            f.write(source_code_report2[prt])
+        # this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_C-source_code_report2_after_adding_content.txt")     # TODO: remove/testing
+        # with open(this_file, 'w') as f:
+        #     f.write(source_code_report2[prt])
 
         return  # wait until entire contents received before doing anything else
     if 'SOURCE_REPORT2_END' in report_dict:
         content = report_dict['SOURCE_REPORT2_END']
 
-        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_X-content_final.txt")     # TODO: remove/testing
-        with open(this_file, 'w') as f:
-            f.write(content)
+        # this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_X-content_final.txt")     # TODO: remove/testing
+        # with open(this_file, 'w') as f:
+        #     f.write(content)
 
-        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_Y-source_code_report2_before_adding_final_content.txt")    # TODO: remove/testing
-        with open(this_file, 'w') as f:
-            f.write(source_code_report2[prt])
+        # this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_Y-source_code_report2_before_adding_final_content.txt")    # TODO: remove/testing
+        # with open(this_file, 'w') as f:
+        #     f.write(source_code_report2[prt])
 
         source_code_report2[prt] += content
 
 
-        this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_Z-source_code_report2_after_adding_final_content.txt")     # TODO: remove/testing
-        with open(this_file, 'w') as f:
-            f.write(source_code_report2[prt])
+        # this_file = os.path.join(debug_path, f"{ts.strftime('%m_%d__%H-%M-%S_%f')}_Z-source_code_report2_after_adding_final_content.txt")     # TODO: remove/testing
+        # with open(this_file, 'w') as f:
+        #     f.write(source_code_report2[prt])
 
         print(f"[{cfg.sys_ver}] <<<<<<<<<<<<< creating NEW report  !!!!!!!!!!!!!!!!!!!!>>>>>>>>>>>")
         create_source_code_page_new2(printer_name, prt)      # this clears source_code_report2[prt] when done
